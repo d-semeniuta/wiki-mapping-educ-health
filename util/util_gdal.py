@@ -150,8 +150,8 @@ class GeoProps(object):
         return np.array(row_indx), np.array(col_indx)
 
     def get_img_from_coord_corners(self, UpLeft_lat, UpLeft_lon, LowerRight_lat, LowerRight_lon, raster):
-            UpLeft_col, UpLeft_row = geo_prop.lonlat2colrow(UpLeft_lon, UpLeft_lat)
-            LowerRight_col, LowerRight_row = geo_prop.lonlat2colrow(LowerRight_lon, LowerRight_lat)
+            UpLeft_col, UpLeft_row = self.lonlat2colrow(UpLeft_lon, UpLeft_lat)
+            LowerRight_col, LowerRight_row = self.lonlat2colrow(LowerRight_lon, LowerRight_lat)
             xsize, ysize = LowerRight_col - UpLeft_col, LowerRight_row - UpLeft_row
 
             # obtain numpy array from raster
@@ -160,7 +160,7 @@ class GeoProps(object):
                                             buf_ysize=None, buf_type=None, callback=None, callback_data=None)
             return raster_img
 
-    def get_coord_centered_img(self, lat, lon, NS_length, EW_length, raster, save=False, filename=None):
+    def get_coord_centered_img(self, lat, lon, NS_length, EW_length, raster, filepath=None):
         # produces image of a NS_length km by EW_length km square as a numpy array centered on (lat, lon) coordinates
 
         # radius of Earth: 6371 km on average (Google)
@@ -176,9 +176,10 @@ class GeoProps(object):
         # MORE ACCURATE USING SPHERICAL CONVERSION WITH COSINE(LAT), BUT THAT WILL MAKE THE RESULTING IMAGES HAVE DIFFERENT
         # SIZES...
 
-        if save:
-            if type(filename) is str:
-                imageio.imwrite('../data/raw/' + filename, raster_img)
+        if type(filepath) is str:
+            imageio.imwrite(filepath, raster_img)
+            # plt.imshow(raster_img, interpolation='nearest')
+            # plt.show()
 
         return raster_img
 
@@ -314,9 +315,18 @@ if __name__ == '__main__':
     # raster_img = raster.ReadAsArray(xoff=col, yoff=row, xsize=20000, ysize=20000, buf_obj=None, buf_xsize=None,
     #                                 buf_ysize=None, buf_type=None, callback=None, callback_data=None)
 
-    raster_img = geo_prop.get_coord_centered_img(-18.88, 47.51, 50, 50, raster, save=True, filename='Antananarivo.jpg')
+    # Butaro Hospital, Rwanda: -1.409722, 29.84
+    # Antananarivo, Madagascar: -18.88, 47.51
+    raster_img = geo_prop.get_coord_centered_img(-1.409722, 29.84, 5, 5, raster,
+                                                 filepath='../data/raw/ButaroHospital.jpg')
+    print(np.mean(raster_img))
 
     # render image
     plt.imshow(raster_img, interpolation='nearest')
-    plt.show()
+    # plt.show()
 
+    lon_max, lat_min = geo_prop.colrow2lonlat(114244, 92780)
+    print('lon_max:')
+    print(lon_max)
+    print('lat_min')
+    print(lat_min)
