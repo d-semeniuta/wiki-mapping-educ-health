@@ -14,7 +14,8 @@ Taken from: https://github.com/ermongroup/WikipediaPovertyMapping.git
 import gdal, osr
 import numpy as np
 import pandas as pd
-
+from matplotlib import pyplot as plt
+import imageio
 
 class GeoProps(object):
     def __init__(self):
@@ -148,6 +149,39 @@ class GeoProps(object):
             col_indx.append(j)
         return np.array(row_indx), np.array(col_indx)
 
+    def get_img_from_coord_corners(self, UpLeft_lat, UpLeft_lon, LowerRight_lat, LowerRight_lon, raster):
+            UpLeft_col, UpLeft_row = geo_prop.lonlat2colrow(UpLeft_lon, UpLeft_lat)
+            LowerRight_col, LowerRight_row = geo_prop.lonlat2colrow(LowerRight_lon, LowerRight_lat)
+            xsize, ysize = LowerRight_col - UpLeft_col, LowerRight_row - UpLeft_row
+
+            # obtain numpy array from raster
+            raster_img = raster.ReadAsArray(xoff=UpLeft_col, yoff=UpLeft_row, xsize=xsize, ysize=ysize, buf_obj=None,
+                                            buf_xsize=None,
+                                            buf_ysize=None, buf_type=None, callback=None, callback_data=None)
+            return raster_img
+
+    def get_coord_centered_img(self, lat, lon, NS_length, EW_length, raster, save=False, filename=None):
+        # produces image of a NS_length km by EW_length km square as a numpy array centered on (lat, lon) coordinates
+
+        # radius of Earth: 6371 km on average (Google)
+        # 6371 km * 2*pi radians/360 deg = 111.1949 km/deg of latitude shift,
+        # cos(latitude)*111.1949 km/deg of longitude shift for approximate spherical conversion
+        upper_left_lat = lat + NS_length/(2*111.1949)
+        upper_left_long = lon - EW_length/(2*111.1949*np.cos(upper_left_lat*np.pi/180))
+        lower_right_lat = lat - NS_length/(2*111.1949)
+        lower_right_long = lon + EW_length/(2*111.1949*np.cos(lower_right_lat*np.pi/180))
+        raster_img = self.get_img_from_coord_corners(upper_left_lat, upper_left_long,
+                                               lower_right_lat, lower_right_long, raster)
+
+        # MORE ACCURATE USING SPHERICAL CONVERSION WITH COSINE(LAT), BUT THAT WILL MAKE THE RESULTING IMAGES HAVE DIFFERENT
+        # SIZES...
+
+        if save:
+            if type(filename) is str:
+                imageio.imwrite('../data/raw/' + filename, raster_img)
+
+        return raster_img
+
 
 class ImageComposite(object):
 
@@ -210,6 +244,9 @@ class ImageComposite(object):
         p = pd.read_csv(gridpath)
         p.apply(self._pdrowfu, axis=1, raw=True, args=(lonindx, latindx, nrows, ncols, prefix, suffix, exportpath))
 
+def deg_min_sec2deg_float(deg, min, sec):
+    return float(deg) + min/60.0 + sec/3600.0
+
 if __name__ == '__main__':
     # must install conda env with:
     # conda create -n testgdal -c conda-forge gdal vs2015_runtime=14
@@ -217,15 +254,15 @@ if __name__ == '__main__':
     # setx PROJ_LIB "C:\Program Files\GDAL\projlib"
 
     # open GDAL data set
-    filepath = r"../data/GUF_Continent_Africa.tif"
+    filepath = r"../data/raw/GUF_Continent_Africa.tif"
 
     # for reduced image data set (better for seeing all of Africa at once and getting a sense of the coordinate system)
     # produces data set with each pixel corresponding to a tenth of a degree shift in lat/long on a side
     # import os
     # os.system('gdal_translate -r lanczos -tr 0.1 0.1  -co COMPRESS=LZW ../data/GUF_Continent_Africa.tif '
-    #           '../data/GUF_Continent_Africa_tenth.tif')
+    #           '../data/raw/GUF_Continent_Africa_tenth.tif')
 
-    # reduced_filepath = r"../data/GUF_Continent_Africa_tenth.tif"
+    # reduced_filepath = r"../data/raw/GUF_Continent_Africa_tenth.tif"
 
     # Open the file:
     raster = gdal.Open(filepath)
@@ -244,7 +281,7 @@ if __name__ == '__main__':
     # get geocoordinates from affine coordinates (pixel coordinates? comments in code say in "meters" but I'm not sure
     # what that would be referencing in the standard)
 
-    # some example conversions from pixels to geocoordinates
+    # # some example conversions from pixels to geocoordinates
     # Xpixel = 300.0
     # Yline = 300.0
     # Xgeo = geo_prop.GeoTransf[0] + Xpixel * geo_prop.GeoTransf[1] + Yline * geo_prop.GeoTransf[2]
@@ -252,22 +289,34 @@ if __name__ == '__main__':
 
     # obtain individual image centered around some geocoordinates as np.array
     # example: Upper-left corner in southern Tanzania, Madagascar shown prominently
-    lat, lon = -10.0, 37.0
-    col, row = geo_prop.lonlat2colrow(lon, lat)
 
-    # max sizes on reduced data set: xsize=889, ysize=722
-    # obtain numpy array from raster
-    raster_img = raster.ReadAsArray(xoff=col, yoff=row, xsize=20000, ysize=20000, buf_obj=None, buf_xsize=None,
-                                    buf_ysize=None, buf_type=None, callback=None, callback_data=None)
+    # UpLeft_lat, UpLeft_lon = -10.0, 37.0
+    # UpLeft_col, UpLeft_row = geo_prop.lonlat2colrow(UpLeft_lon, UpLeft_lat)
+    # # coordinates of the capital of Madagascar, can see lower-right corner just on the edge of the lights of the capital
+    # LowerRight_lat, LowerRight_lon = -deg_min_sec2deg_float(18, 52, 3), deg_min_sec2deg_float(47, 31, 7)
+    # LowerRight_col, LowerRight_row = geo_prop.lonlat2colrow(LowerRight_lon, LowerRight_lat)
+    # xsize, ysize = LowerRight_col - UpLeft_col, LowerRight_row - UpLeft_row
+    # # xsize, ysize = 20000, 20000
+    #
+    # # max sizes on reduced data set: xsize=889, ysize=722
+    # # obtain numpy array from raster
+    # raster_img = raster.ReadAsArray(xoff=UpLeft_col, yoff=UpLeft_row, xsize=xsize, ysize=ysize, buf_obj=None, buf_xsize=None,
+    #                                 buf_ysize=None, buf_type=None, callback=None, callback_data=None)
+
+    # obtain individual image centered around some geocoordinates as np.array
+    # example: Upper-left corner in southern Tanzania, Madagascar shown prominently
+
+    # lat, lon = -10.0, 37.0
+    # col, row = geo_prop.lonlat2colrow(lon, lat)
+    #
+    # # max sizes on reduced data set: xsize=889, ysize=722
+    # # obtain numpy array from raster
+    # raster_img = raster.ReadAsArray(xoff=col, yoff=row, xsize=20000, ysize=20000, buf_obj=None, buf_xsize=None,
+    #                                 buf_ysize=None, buf_type=None, callback=None, callback_data=None)
+
+    raster_img = geo_prop.get_coord_centered_img(-18.88, 47.51, 50, 50, raster, save=True, filename='Antananarivo.jpg')
 
     # render image
-    from matplotlib import pyplot as plt
     plt.imshow(raster_img, interpolation='nearest')
     plt.show()
 
-    # convert image to GIF? JPG? from numpy or directly from TIF?
-    # import scipy.misc
-    # scipy.misc.toimage(raster_img, cmin=0.0, cmax=255.0).save('outfile.jpg')
-
-    import matplotlib
-    matplotlib.image.imsave('../data/Madagascar.png', raster_img)
