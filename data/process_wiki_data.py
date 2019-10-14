@@ -55,7 +55,7 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
             print("Finished " + str(index) + " of " + str(lat_lon_df.shape[0]) + " rows.")
         lat = row["lat"]
         lon = row["lon"]
-        print(lat, lon)
+        # print(lat, lon)
         PARAMS["gscoord"] = str(lat) + "|" + str(lon)
         R = S.get(url=URL, params=PARAMS)
         DATA = R.json()
@@ -68,14 +68,14 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
             PAGES.append(str(place["pageid"]))
             PAGE_TITLES.append(place["title"])
 
-        print("=== FINDING AVG WORD COUNT ===")
+        # print("=== FINDING AVG WORD COUNT ===")
         avg_word_count = find_avg_word_counts(PAGES)
         # print("=== FINDING AVG REV COUNT ===")
         # avg_rev_count = find_avg_revisions(PAGES)
         # avg_time_since_last_rev = find_avg_time_since_last_rev(PAGES)
-        print("=== FINDING EDUC COUNT ===")
+        # print("=== FINDING EDUC COUNT ===")
         educ_article_count = education_category_count(PAGE_TITLES)
-        print("=== FINDING HEALTH COUNT ===")
+        # print("=== FINDING HEALTH COUNT ===")
         health_article_count = health_category_count(PAGE_TITLES)
         compiled_csv = compiled_csv.append({
             "cluster_country" : row["country"],
