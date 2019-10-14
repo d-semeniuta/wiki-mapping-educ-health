@@ -1,6 +1,6 @@
-This is information on how to generate the processed data from raw CSVs
+This is information on how to generate the processed data from raw DHS CSVs
 
-Required raw data, located in /raw directory:
+Required raw data, located in ./raw/DHS directory:
   InfantMortality_Cluster5Year.csv
   InfantMortality_ClusterYear.csv
   MaternalEducation_cluster.csv
