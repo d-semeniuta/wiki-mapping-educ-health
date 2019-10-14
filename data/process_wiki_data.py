@@ -198,7 +198,7 @@ def main():
     lat_lon_df = lat_lon_df.append(mat_ed[['lat', 'lon']], ignore_index=True)
 
     lat_lon_df.drop_duplicates(keep='first', inplace=True)
-    build_csv()
+    build_csv(lat_lon_df)
 
 if __name__ == '__main__':
     main()
