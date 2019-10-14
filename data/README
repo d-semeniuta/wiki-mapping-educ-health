@@ -1,0 +1,14 @@
+Data Directory
+
+Expected Directory structure
+
+.(data)
+|--raw
+|  |--DHS
+|     |--DHS csv data
+|  |--misc
+|  |--nightlights
+|     |--nighlights data
+|  |--wikipedia
+|     |--wiki data
+|--processed -> output directory for processing
