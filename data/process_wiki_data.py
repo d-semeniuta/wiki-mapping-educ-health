@@ -8,10 +8,8 @@ import dateutil.parser
 import os
 
 data_dir = os.path.abspath('./raw')
+wiki_dir = os.path.join(data_dir, 'wikipedia')
 processed_dir = os.path.abspath('./processed')
-imr_5yr_loc = os.path.join(data_dir, 'InfantMortality_Cluster5Year.csv')
-imr_1yr_loc = os.path.join(data_dir, 'InfantMortality_ClusterYear.csv')
-mat_ed_loc = os.path.join(data_dir, 'MaternalEducation_cluster.csv')
 
 COORD_ART_PREFIX = "coordinate_articles_"
 COORD_ART_SUFFIX = ".txt"
@@ -36,8 +34,8 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
     # PARAMS["gslimit"]: gslimit
     PARAMS["gsradius"]: gsradius
 
-    columns = ["lat", "lon"]
-    within_distance_string = "Num Articles Within " + str(gsradius) + " Meters of Loc"
+    columns = ["cluster_country", "cluster_id", "lat", "lon"]
+    within_distance_string = "Num Articles Within " + gsradius + " Meters of Loc"
     avg_word_count_string = "Avg Word Count"
     avg_rev_count_string = "Avg Revision Count"
     avg_time_since_last_rev_string = "Avg Time Since Last Revision"
@@ -76,6 +74,8 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
         educ_article_count = education_category_count(PAGE_TITLES)
         health_article_count = health_category_count(PAGE_TITLES)
         compiled_csv = compiled_csv.append({
+            "cluster_country" : row["country"],
+            "cluster_id" : row["cluster_id"],
             "lat": lat,
             "lon": lon,
             within_distance_string: len(PLACES),
@@ -86,7 +86,8 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
             health_article_count_string: health_article_count
         }, ignore_index=True)
 
-    lat_lon_df.to_csv(os.path.join(processed_dir, 'geolocation_stats.csv'), index=False)
+    ### TODO: Is this supposed to be compiled_csv.to_csv ?
+    compiled_csv.to_csv(os.path.join(processed_dir, 'geolocation_stats.csv'), index=False)
 
 def find_avg_word_counts(page_id_list):
     if len(page_id_list) == 0:
@@ -151,7 +152,7 @@ def education_category_count(page_titles_list):
     educ_file_list = ["college", "institute", "library", "school", "university"]
     for title in page_titles_list:
         for file in educ_file_list:
-            path = os.path.join(data_dir, COORD_ART_PREFIX + file + COORD_ART_SUFFIX)
+            path = os.path.join(wiki_dir, COORD_ART_PREFIX + file + COORD_ART_SUFFIX)
             if find_string_in_file(path, title):
                 count += 1
                 break
@@ -206,16 +207,7 @@ def unix_time_millis(dt):
     return (dt - epoch).total_seconds() * 1000.0
 
 def main():
-    imr_1yr = pd.read_csv(imr_1yr_loc)
-    imr_5yr = pd.read_csv(imr_5yr_loc)
-    mat_ed = pd.read_csv(mat_ed_loc)
-
-    lat_lon_df = imr_1yr[['lat', 'lon']]
-    lat_lon_df = lat_lon_df.append(imr_5yr[['lat', 'lon']], ignore_index=True)
-    lat_lon_df = lat_lon_df.append(mat_ed[['lat', 'lon']], ignore_index=True)
-
-    lat_lon_df.drop_duplicates(keep='first', inplace=True)
-    print(lat_lon_df.head())
+    lat_lon_df = pd.read_csv(os.path.join(processed_dir, 'ClusterCoordinates.csv'))
     build_csv(lat_lon_df)
 
 if __name__ == '__main__':

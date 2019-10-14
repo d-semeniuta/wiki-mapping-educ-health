@@ -3,7 +3,7 @@ import pandas as pd
 
 import os
 
-data_dir = os.path.abspath('./raw')
+data_dir = os.path.abspath('./raw/DHS')
 processed_dir = os.path.abspath('./processed')
 imr_5yr_loc = os.path.join(data_dir, 'InfantMortality_Cluster5Year.csv')
 imr_1yr_loc = os.path.join(data_dir, 'InfantMortality_ClusterYear.csv')
@@ -74,9 +74,9 @@ def combine_imr_ed_cluster_level(imr_5yr, mat_ed):
     cluster_level_combined.to_csv(os.path.join(processed_dir, 'ClusterLevelCombined_5yrIMR_MatEd.csv'), index=False)
 
 def build_cluster_info(imr_1yr, imr_5yr, mat_ed):
-    df1 = mat_ed[['cluster_id', 'lat', 'lon']]
-    df2 = imr_5yr[['cluster_id', 'lat', 'lon']]
-    df3 = imr_1yr[['cluster_id', 'lat', 'lon']]
+    df1 = mat_ed[['country', 'cluster_id', 'lat', 'lon']]
+    df2 = imr_5yr[['country', 'cluster_id', 'lat', 'lon']]
+    df3 = imr_1yr[['country', 'cluster_id', 'lat', 'lon']]
     clusters = pd.concat([df1,df2,df3]).drop_duplicates()
     clusters.to_csv(os.path.join(processed_dir, 'ClusterCoordinates.csv'), index=False)
 
@@ -84,7 +84,7 @@ def main():
     imr_1yr = pd.read_csv(imr_1yr_loc)
     imr_5yr = pd.read_csv(imr_5yr_loc)
     mat_ed = pd.read_csv(mat_ed_loc)
-
+    
     process_imr1yr(imr_1yr)
     country_level_imr = process_imr5yr(imr_5yr)
     flat_country_level_ed = process_mat_ed(mat_ed)
