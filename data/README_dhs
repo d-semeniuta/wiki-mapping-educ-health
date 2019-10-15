@@ -70,11 +70,11 @@ Generates outputs in /processed:
       pct2                    : percentage of mothers with secondary education,
       pct3                    : percentage of mothers with higher education,
       nmothers,
-      svy_yr_ed,
-      yrgroup_imr,
+      svy_yr_ed               : year which education survey was conducted,
+      yrgroup_imr             : 5 year span of health survey,
       ndeath                  : number of deaths of children within one year of birth,
       nbirth                  : number of births in 5 year span,
-      imr                     : ,
+      imr                     : infant mortality rate,
       undereducated           : combined percentage of no and primary education,
       educated                : combined percentage of secondary and higher education
   CountryLevelMaternalEducation_flat.csv

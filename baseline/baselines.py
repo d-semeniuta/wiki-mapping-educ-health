@@ -4,6 +4,10 @@ from sklearn.model_selection import GridSearchCV
 import pandas as pd
 import pickle
 import os
+import random
+import pdb
+
+random.seed(1234)
 
 def  generate_baselines():
     '''
@@ -36,7 +40,7 @@ def  generate_baselines():
 
     classification_baselines['Logistic Regression'] = {}
     classification_baselines['Logistic Regression']['model'] = linear_model.LogisticRegression(penalty='l2', tol=0.0001,
-                                            solver='liblinear', max_iter=100, multi_class='ovr', n_jobs=-1)
+                                            solver='liblinear', max_iter=100, multi_class='ovr')
     classification_baselines['Logistic Regression']['hyperparams'] = {}
     # C: inverse L2 regularization strength, smaller values >> greater regularization, can also add L1 regularization
     classification_baselines['Logistic Regression']['hyperparams']['C'] = [1e-4, 1e-3, 3e-2, 1e0, 3e1, 1e3]
@@ -56,7 +60,7 @@ def  generate_baselines():
     # min_impurity_split=None, bootstrap=True, oob_score=False, n_jobs=None,
     # random_state=None, verbose=0, warm_start=False, class_weight=None)
     classification_baselines['Random Forests']['hyperparams'] = {}
-    classification_baselines['Random Forests']['hyperparams']['n_estimators'] = [100, 300, 500]
+    classification_baselines['Random Forests']['hyperparams']['n_estimators'] = [50, 100, 300, 500]
     classification_baselines['Random Forests']['hyperparams']['max_depth'] = [5, 10, None]
 
     cont_baselines = {}
@@ -66,20 +70,20 @@ def  generate_baselines():
     cont_baselines['Ridge Regression'] = {}
     cont_baselines['Ridge Regression']['model'] = linear_model.Ridge()
     cont_baselines['Ridge Regression']['hyperparams'] = {}
-    cont_baselines['Ridge Regression']['hyperparams']['alpha'] = [0, 0.1, 0.5, 1, 5, 10, 20, 50, 100, 200, 500, 1000]
+    cont_baselines['Ridge Regression']['hyperparams']['alpha'] = [0.1, 0.5, 1, 5, 10, 20]
 
     # Another linear method: lasso regression
     cont_baselines['Lasso Regression'] = {}
     cont_baselines['Lasso Regression']['model'] = linear_model.Lasso()
     cont_baselines['Lasso Regression']['hyperparams'] = {}
-    cont_baselines['Lasso Regression']['hyperparams']['alpha'] = [0, 0.1, 0.5, 1, 5, 10, 20, 50, 100, 200, 500, 1000]
+    cont_baselines['Lasso Regression']['hyperparams']['alpha'] = [0.1, 0.5, 1, 5, 10, 20]
 
     # random forests regression
     # uses MSE as criterion, should be converted to R^2 with simple post-cross-validation regression over data
     cont_baselines['Random Forests Regressor'] = {}
     cont_baselines['Random Forests Regressor']['model'] = ensemble.RandomForestRegressor()
     cont_baselines['Random Forests Regressor']['hyperparams'] = {}
-    cont_baselines['Random Forests Regressor']['hyperparams']['n_estimators'] = [100, 300, 500]
+    cont_baselines['Random Forests Regressor']['hyperparams']['n_estimators'] = [50, 100, 300, 500]
     cont_baselines['Random Forests Regressor']['hyperparams']['max_depth'] = [5, 10, None]
 
     return classification_baselines, cont_baselines
@@ -94,7 +98,7 @@ def save_baselines(task_name, baselines):
         pickle.dump(baselines, f)
 
 
-def run_baselines(task_name, baselines, label_pair, n_folds=5):
+def run_baselines(task_name, baselines, label_pair, train_countries, n_folds=5):
     # # simple data set for testing the code
     # X = [(0, 0.1), (1, 1), (2, 2)] * 3
     # y = [0, 2.1, 3] * 3
@@ -105,10 +109,13 @@ def run_baselines(task_name, baselines, label_pair, n_folds=5):
         # perform cross-validation, may need to reduce number of folds for compute
         # reduce n_jobs to number of processors to use if CPU overwhelmed (-1 means use all processors) and
         # reduce pre_dispatch to 'n_jobs' if memory errors occur
-        clf = GridSearchCV(baseline['model'], baseline['hyperparams'], cv=n_folds, n_jobs=-1, pre_dispatch='2*n_jobs', refit=True)
+        clf = GridSearchCV(baseline['model'], baseline['hyperparams'], cv=n_folds, pre_dispatch='2*n_jobs', refit=True)
         clf.fit(X_train, y_train)
         baselines[name]['best_model'] = clf.best_estimator_
         baselines[name]['best_hyperparams'] = clf.best_params_
+        print('Task: {}'.format(task_name))
+        country_str = ' '.join(train_countries) if train_countries else 'All countries'
+        print('Countries grid search trained on:\n\t{}'.format(country_str))
         print('{}: Best performance of {} on {}-fold CV was achieved with hyperparameters:\n{}'
               .format(name, clf.best_score_, n_folds, clf.best_params_))
 
@@ -119,6 +126,7 @@ def generate_ed_label_df(cluster_df):
                             'pct_secondary_education','pct_higher_education']]
     ed_data['is_undereducated'] = ((ed_data.pct_no_education + ed_data.pct_primary_education) >
                                     (ed_data.pct_secondary_education + ed_data.pct_higher_education))
+    print(ed_data.is_undereducated.value_counts())
     ed_data['ed_score'] = (
         ed_data.pct_primary_education
             + 2 * ed_data.pct_secondary_education
@@ -154,21 +162,21 @@ def generate_label_pairs(label_df, wiki_df, label_col, feat_cols,
     else:
         all_countries = set(train_countries + test_countries)
         relevant_countries = merged[merged.cluster_country.isin(all_countries)]
-        
+
     train_df, test_df = train_test_split(relevant_countries, test_size=test_size)
     # filter out into our train and test countries
     if train_countries is not None:
         train_df = train_df[train_df.cluster_country.isin(train_countries)]
     if test_countries is not None:
-    test_df = test_df[test_df.cluster_country.isin(test_countries)]
+        test_df = test_df[test_df.cluster_country.isin(test_countries)]
 
-    X_train = train_df[feat_cols].to_numpy()
-    X_test = test_df[feat_cols].to_numpy()
-    y_train = train_df[label_col].to_numpy()
-    y_test = test_df[label_col].to_numpy()
+    X_train = train_df[feat_cols].to_numpy(copy=True)
+    X_test = test_df[feat_cols].to_numpy(copy=True)
+    y_train = train_df[label_col].to_numpy(copy=True)
+    y_test = test_df[label_col].to_numpy(copy=True)
     return X_train, X_test, y_train, y_test
 
-def generate_data():
+def load_data():
     data_dir = os.path.abspath('../data')
     processed_dir = os.path.join(data_dir, 'processed')
     cluster_level_combined_file = 'ClusterLevelCombined_5yrIMR_MatEd.csv'
@@ -178,25 +186,45 @@ def generate_data():
     health_labels_df = cluster_level_combined_df[['cluster_id', 'imr']]
 
     wiki_df = pd.read_csv(os.path.join(processed_dir, "geolocation_stats.csv"))
-    health_feat_cols = ["Num Articles Within 10000 Meters of Loc","Avg Word Count","Avg Time Since Last Revision","Educ Article Count"]
-    educ_feat_cols = ["Num Articles Within 10000 Meters of Loc","Avg Word Count","Avg Time Since Last Revision","Health Article Count"]
+    health_feat_cols = ["Num Articles Within 10000 Meters of Loc","Avg Word Count","Educ Article Count"]
+    educ_feat_cols = ["Num Articles Within 10000 Meters of Loc","Avg Word Count","Health Article Count"]
+
+    return ed_labels_df, health_labels_df, wiki_df, educ_feat_cols, health_feat_cols
+
+def generate_data(data_blob, train_countries=None, test_countries=None, test_size=0.2):
+    ed_labels_df, health_labels_df, wiki_df, educ_feat_cols, health_feat_cols = data_blob
 
     label_pairs = {}
-    label_pairs['ed_discrete'] = generate_label_pairs(ed_labels_df, wiki_df, 'is_undereducated', educ_feat_cols, ["Angola", "Rwanda"], ["Angola", "Rwanda"])
-    label_pairs['ed_cont'] = generate_label_pairs(ed_labels_df, wiki_df, 'ed_score', educ_feat_cols, ["Angola", "Rwanda"], ["Angola", "Rwanda"])
-    label_pairs['health'] = generate_label_pairs(health_labels_df, wiki_df, 'imr', health_feat_cols, ["Angola", "Rwanda"], ["Angola", "Rwanda"])
+    label_pairs['ed_discrete'] = generate_label_pairs(ed_labels_df, wiki_df, 'is_undereducated', educ_feat_cols, train_countries, test_countries, test_size)
+    label_pairs['ed_cont'] = generate_label_pairs(ed_labels_df, wiki_df, 'ed_score', educ_feat_cols, train_countries, test_countries, test_size)
+    label_pairs['health'] = generate_label_pairs(health_labels_df, wiki_df, 'imr', health_feat_cols, train_countries, test_countries, test_size)
 
     return label_pairs
 
 def main():
     classification_baselines, cont_baselines = generate_baselines()
 
-    label_pairs = generate_data()
+    train_countries_list = [
+        None,
+        ['Angola'],
+        ['Rwanda']
+    ]
+    test_countries_list = [
+        None,
+        ['Angola'],
+        ['Rwanda']
+    ]
 
-    results = {}
-    results['health'] = run_baselines('health', cont_baselines, label_pairs['health'])
-    results['ed_discrete'] = run_baselines('ed_discrete', classification_baselines, label_pairs['ed_discrete'])
-    results['ed_cont'] = run_baselines('ed_cont', cont_baselines, label_pairs['ed_cont'])
+    results_list = []
+    data_blob = load_data()
+    for train, test in zip(train_countries_list, test_countries_list):
+        label_pairs = generate_data(data_blob, train, test)
+
+        results = {}
+        results['health'] = run_baselines('health', cont_baselines, label_pairs['health'], train)
+        results['ed_discrete'] = run_baselines('ed_discrete', classification_baselines, label_pairs['ed_discrete'], train)
+        results['ed_cont'] = run_baselines('ed_cont', cont_baselines, label_pairs['ed_cont'], train)
+        results_list.append(results)
 
 
 
