@@ -127,7 +127,7 @@ def generate_ed_label_df(cluster_df):
     return ed_data[['cluster_id', 'is_undereducated', 'ed_score']]
 
 def generate_label_pairs(label_df, wiki_df, label_col, feat_cols,
-        train_countries, test_countries, test_size=0.2):
+        train_countries=None, test_countries=None, test_size=0.2):
     """Generates numpy label pairs from the provided dataframes
     Parameters
     ----------
@@ -147,12 +147,19 @@ def generate_label_pairs(label_df, wiki_df, label_col, feat_cols,
     from sklearn.model_selection import train_test_split
 
     merged = wiki_df.merge(label_df, on='cluster_id')
-    all_countries = set(train_countries + test_countries)
+
     # don't bother splitting on irrelevant countries
-    relevant_countries = merged[merged.cluster_country.isin(all_countries)]
+    if train_countries is None or test_countries is None:
+        relevant_countries = merged
+    else:
+        all_countries = set(train_countries + test_countries)
+        relevant_countries = merged[merged.cluster_country.isin(all_countries)]
+        
     train_df, test_df = train_test_split(relevant_countries, test_size=test_size)
     # filter out into our train and test countries
-    train_df = train_df[train_df.cluster_country.isin(train_countries)]
+    if train_countries is not None:
+        train_df = train_df[train_df.cluster_country.isin(train_countries)]
+    if test_countries is not None:
     test_df = test_df[test_df.cluster_country.isin(test_countries)]
 
     X_train = train_df[feat_cols].to_numpy()
