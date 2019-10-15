@@ -12,16 +12,78 @@ Generates outputs in /processed:
     Flattened cluster level maternal education data. Contains one row per cluster.
     Each row contains cluster_id, location, and percentage of each education category
     attained by mothers in the cluster
+    columns:
+      cluster_id              : ID of cluster as provided by DHS,
+      country                 : country survey was conducted in,
+      svy_yr_ed               : year education survey was conducted in,
+      nmothers                : sample size of cluster,
+      lat,
+      lon,
+      pct_no_education        : percent of mothers with no formal education,
+      pct_primary_education   : percent of mothers with exactly primary education,
+      pct_secondary_education : percent of mothers with exactly secondary education,
+      pct_higher_education    : percent of mothers with exactly higher education
   ClusterCoordinates.csv
-    Each row contains cluster id, and lat and long of cluster
+    Each row contains country, cluster id, and lat and long of cluster
+    columns:
+      country                 : country cluster is located in,
+      cluster_id              : DHS id of cluster,
+      lat,
+      lon
   CountryLevelIMR_1Year.csv
     Contains IMR aggregated at the country level for each survey year
+    columns:
+      country,
+      child_birth_year        : Birth year of child,
+      ndeath                  : number of deaths of children within one year of birth, where born in child_birth_year,
+      nbirth                  : number of children born in child_birth_year,
+      imr                     : infant mortality rate (ndeath / nbirth)
   CountryLevelIMR_5Year.csv
     Contains IMR aggregated at the country level for the 5 year survey spans
+    columns:
+      country,
+      yrgroup                 : Span of 5 years which survey covers,
+      ndeath                  : number of deaths of children within one year of birth,
+      nbirth                  : number of births in 5 year span,
+      imr
   ClusterLevelCombined_5yrIMR_MatEd.csv
     Contains combined data of most recent education and imr 5 year surveys
     at the cluster level
+      cluster_id,
+      country                 : country location of cluster,
+      svy_yr_ed               : year which education survey was conducted,
+      nmothers,
+      lat,
+      lon,
+      pct_no_education,
+      pct_primary_education,
+      pct_secondary_education,
+      pct_higher_education,
+      imr,
+      yrgroup_imr             : 5 year span of imr data
   CountryLevelCombined_5yr.csv
     Country level aggregation of most recent 5 year span IMR and maternal education
+    columns:
+      country                 : country in which stats are aggregated,
+      pct0                    : percentage of mothers with no education,
+      pct1                    : percentage of mothers with primary education,
+      pct2                    : percentage of mothers with secondary education,
+      pct3                    : percentage of mothers with higher education,
+      nmothers,
+      svy_yr_ed,
+      yrgroup_imr,
+      ndeath                  : number of deaths of children within one year of birth,
+      nbirth                  : number of births in 5 year span,
+      imr                     : ,
+      undereducated           : combined percentage of no and primary education,
+      educated                : combined percentage of secondary and higher education
   CountryLevelMaternalEducation_flat.csv
     Contains maternal education aggregated at the country level
+    columns:
+      country,
+      pct0,
+      pct1,
+      pct2,
+      pct3,
+      ntot                    : number of mothers surveyed in total country,
+      svy_yr
