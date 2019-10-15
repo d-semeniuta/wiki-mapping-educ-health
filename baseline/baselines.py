@@ -119,7 +119,12 @@ def generate_ed_label_df(cluster_df):
                             'pct_secondary_education','pct_higher_education']]
     ed_data['is_undereducated'] = ((ed_data.pct_no_education + ed_data.pct_primary_education) >
                                     (ed_data.pct_secondary_education + ed_data.pct_higher_education))
-    return ed_data[['cluster_id', 'is_undereducated']]
+    ed_data['ed_score'] = (
+        ed_data.pct_primary_education
+            + 2 * ed_data.pct_secondary_education
+            + 3 * ed_data.pct_higher_education
+        )
+    return ed_data[['cluster_id', 'is_undereducated', 'ed_score']]
 
 def generate_label_pairs(label_df, wiki_df, label_col, feat_cols,
         train_countries, test_countries, test_size=0.2):
@@ -180,7 +185,8 @@ def generate_data():
     # educ_feat_cols = list(col_headers)
 
     label_pairs = {}
-    label_pairs['ed'] = generate_label_pairs(ed_labels_df, wiki_df, 'is_undereducated', ed_feat_cols)
+    label_pairs['ed_discrete'] = generate_label_pairs(ed_labels_df, wiki_df, 'is_undereducated', ed_feat_cols)
+    label_pairs['ed_cont'] = generate_label_pairs(ed_labels_df, wiki_df, 'ed_score', ed_feat_cols)
     label_pairs['health'] = generate_label_pairs(health_labels_df, wiki_df, 'imr', health_feat_cols)
 
     return label_pairs
@@ -192,7 +198,8 @@ def main():
 
     results = {}
     results['health'] = run_baselines('health', cont_baselines, label_pairs['health'])
-    results['ed'] = run_baselines('ed', cont_baselines, label_pairs['ed'])
+    results['ed_discrete'] = run_baselines('ed', classification_baselines, label_pairs['ed_discrete'])
+    results['ed_cont'] = run_baselines('ed', classification_baselines, label_pairs['ed_cont'])
 
 
 
