@@ -102,7 +102,7 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
     ### TODO: Is this supposed to be compiled_csv.to_csv ?
     compiled_csv.to_csv(os.path.join(processed_dir, 'geolocation_stats.csv'), index=False)
 
-def create_row()
+def create_row():
 
 def find_avg_word_counts(page_id_list):
     if len(page_id_list) == 0:
