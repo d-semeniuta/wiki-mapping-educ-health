@@ -4,6 +4,8 @@ import requests
 import datetime
 import mmap
 import dateutil.parser
+import time
+import multiprocessing as mp
 
 import os
 
@@ -51,8 +53,15 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
     compiled_csv = pd.DataFrame(columns=columns)
 
     for index, row in lat_lon_df.iterrows():
-        if index % 1000 == 0:
+        if index % 100 == 0:
+            if index == 0:
+                start_time = time.time()
+                holder = start_time
+            else:
+                holder = start_time
+                start_time = time.time()
             print("Finished " + str(index) + " of " + str(lat_lon_df.shape[0]) + " rows.")
+            print(time.time() - holder)
         lat = row["lat"]
         lon = row["lon"]
         # print(lat, lon)
@@ -72,7 +81,7 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
         avg_word_count = find_avg_word_counts(PAGES)
         # print("=== FINDING AVG REV COUNT ===")
         # avg_rev_count = find_avg_revisions(PAGES)
-        # avg_time_since_last_rev = find_avg_time_since_last_rev(PAGES)
+        avg_time_since_last_rev = find_avg_time_since_last_rev(PAGES)
         # print("=== FINDING EDUC COUNT ===")
         educ_article_count = education_category_count(PAGE_TITLES)
         # print("=== FINDING HEALTH COUNT ===")
@@ -85,13 +94,15 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
             within_distance_string: len(PLACES),
             avg_word_count_string: avg_word_count,
             # avg_rev_count_string: avg_rev_count,
-            # avg_time_since_last_rev_string: avg_time_since_last_rev,
+            avg_time_since_last_rev_string: avg_time_since_last_rev,
             educ_article_count_string: educ_article_count,
             health_article_count_string: health_article_count
         }, ignore_index=True)
 
     ### TODO: Is this supposed to be compiled_csv.to_csv ?
     compiled_csv.to_csv(os.path.join(processed_dir, 'geolocation_stats.csv'), index=False)
+
+def create_row()
 
 def find_avg_word_counts(page_id_list):
     if len(page_id_list) == 0:
@@ -152,7 +163,7 @@ def education_category_count(page_titles_list):
     if len(page_titles_list) == 0:
         return 0
     count = 0
-    educ_file_list = ["college", "institute", "library", "school", "university"]
+    educ_file_list = ["school"]
     for title in page_titles_list:
         for file in educ_file_list:
             path = os.path.join(wiki_dir, COORD_ART_PREFIX + file + COORD_ART_SUFFIX)
@@ -179,31 +190,30 @@ def find_string_in_file(path, target):
         if s.find(str.encode(target)) != -1:
             return True
 
-# def find_avg_time_since_last_rev(page_id_list):
-#     if len(page_id_list) == 0:
-#         return 0
-#     pageids = "|".join(page_id_list)
-#     PARAMS = {
-#         "action": "query",
-#         "prop": "revisions",
-#         "pageids": pageids,
-#         "rvprop": "timestamp",
-#         "rvslots": "main",
-#         "formatversion": "2",
-#         "format": "json"
-#     }
-#
-#     R = S.get(url=URL, params=PARAMS)
-#     DATA = R.json()
-#
-#     PAGES = DATA['query']['pages']
-#     timestamps = []
-#     for page in PAGES:
-#         timestamp = page["revisions"][0]["timestamp"]
-#         dt = dateutil.parser.parse(timestamp)
-#         timestamps.append(unix_time_millis(dt))
-#
-#     return sum(timestamps)/len(timestamps)
+def find_avg_time_since_last_rev(page_id_list):
+    if len(page_id_list) == 0:
+        return 0
+    pageids = "|".join(page_id_list)
+    PARAMS = {
+        "action": "query",
+        "prop": "revisions",
+        "pageids": pageids,
+        "rvprop": "timestamp",
+        "rvslots": "main",
+        "formatversion": "2",
+        "format": "json"
+    }
+
+    R = S.get(url=URL, params=PARAMS)
+    DATA = R.json()
+
+    PAGES = DATA['query']['pages']
+    timestamps = []
+    for page in PAGES:
+        timestamp = page["revisions"][0]["timestamp"]
+        dt = dateutil.parser.parse(timestamp).replace(tzinfo=None)
+        timestamps.append(unix_time_millis(dt))
+    return sum(timestamps)/len(timestamps)
 
 def unix_time_millis(dt):
     epoch = datetime.datetime.utcfromtimestamp(0)
