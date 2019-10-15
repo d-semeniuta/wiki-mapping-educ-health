@@ -27,6 +27,19 @@ def  generate_baselines():
     classification_baselines = {}
 
     # classification models
+
+    # for binary classification, multi_class = 'ovr', solver = 'liblinear'
+    # change multi_class to 'multinomial' for multi-class classification (i.e. N_classes > 2) change solver to 'lbfgs'
+    # may need to lower n_jobs if processor is completely consumed (-1 = all processors allocated), has no effect if
+    # solver = 'liblinear'
+
+    classification_baselines['Logistic Regression'] = {}
+    classification_baselines['Logistic Regression']['model'] = linear_model.LogisticRegression(penalty='l2', tol=0.0001,
+                                            solver='liblinear', max_iter=100, multi_class='ovr', n_jobs=-1)
+    classification_baselines['Logistic Regression']['hyperparams'] = {}
+    # C: inverse L2 regularization strength, smaller values >> greater regularization, can also add L1 regularization
+    classification_baselines['Logistic Regression']['hyperparams']['C'] = [1e-4, 1e-3, 3e-2, 1e0, 3e1, 1e3]
+
     # need to specify gamma and C. I assumed an RBF kernel would be reasonable. That could also be cross-validated
     classification_baselines['SVM'] = {}
     classification_baselines['SVM']['model'] = svm.SVC(kernel='rbf')
@@ -73,14 +86,14 @@ def  generate_baselines():
 def save_baselines(task_name, baselines):
     # check if dumps directory exists
     dump_dir = os.path.abspath('./dumps')
-    if not os.path.exists(dump_dir)
+    if not os.path.exists(dump_dir):
         os.mkdirs(dump_dir)
     dump_name = '{}_baselines.pickle'.format(task_name)
     with open(os.path.join(dump_dir, dump_name), 'wb+') as f:
         pickle.dump(baselines, f)
 
 
-def run_baselines(task_name, baselines, label_pair, n_folds = 2):
+def run_baselines(task_name, baselines, label_pair, n_folds=5):
     # # simple data set for testing the code
     # X = [(0, 0.1), (1, 1), (2, 2)] * 3
     # y = [0, 2.1, 3] * 3
