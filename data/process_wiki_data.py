@@ -46,7 +46,7 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
     columns.append(within_distance_string)
     columns.append(avg_word_count_string)
     # columns.append(avg_rev_count_string)
-    # columns.append(avg_time_since_last_rev_string)
+    columns.append(avg_time_since_last_rev_string)
     columns.append(educ_article_count_string)
     columns.append(health_article_count_string)
 
@@ -101,8 +101,6 @@ def build_csv(lat_lon_df, gsradius = 10000, gslimit = 10):
 
     ### TODO: Is this supposed to be compiled_csv.to_csv ?
     compiled_csv.to_csv(os.path.join(processed_dir, 'geolocation_stats.csv'), index=False)
-
-def create_row():
 
 def find_avg_word_counts(page_id_list):
     if len(page_id_list) == 0:
