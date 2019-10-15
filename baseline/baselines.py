@@ -88,39 +88,6 @@ def  generate_baselines():
 
     return classification_baselines, cont_baselines
 
-def save_baselines(task_name, baselines):
-    # check if dumps directory exists
-    dump_dir = os.path.abspath('./dumps')
-    if not os.path.exists(dump_dir):
-        os.mkdir(dump_dir)
-    dump_name = '{}_baselines.pickle'.format(task_name)
-    with open(os.path.join(dump_dir, dump_name), 'wb+') as f:
-        pickle.dump(baselines, f)
-
-
-def run_baselines(task_name, baselines, label_pair, train_countries, n_folds=5):
-    # # simple data set for testing the code
-    # X = [(0, 0.1), (1, 1), (2, 2)] * 3
-    # y = [0, 2.1, 3] * 3
-    # n_folds = 2
-    X_train, X_test, y_train, y_test = label_pair
-
-    for name, baseline in baselines.items():
-        # perform cross-validation, may need to reduce number of folds for compute
-        # reduce n_jobs to number of processors to use if CPU overwhelmed (-1 means use all processors) and
-        # reduce pre_dispatch to 'n_jobs' if memory errors occur
-        clf = GridSearchCV(baseline['model'], baseline['hyperparams'], cv=n_folds, pre_dispatch='2*n_jobs', refit=True)
-        clf.fit(X_train, y_train)
-        baselines[name]['best_model'] = clf.best_estimator_
-        baselines[name]['best_hyperparams'] = clf.best_params_
-        print('Task: {}'.format(task_name))
-        country_str = ' '.join(train_countries) if train_countries else 'All countries'
-        print('Countries grid search trained on:\n\t{}'.format(country_str))
-        print('{}: Best performance of {} on {}-fold CV was achieved with hyperparameters:\n{}'
-              .format(name, clf.best_score_, n_folds, clf.best_params_))
-
-    save_baselines(task_name, baselines)
-
 def generate_ed_label_df(cluster_df):
     ed_data = cluster_df[['cluster_id', 'pct_no_education', 'pct_primary_education',
                             'pct_secondary_education','pct_higher_education']]
@@ -201,32 +168,114 @@ def generate_data(data_blob, train_countries=None, test_countries=None, test_siz
 
     return label_pairs
 
+def save_baselines(task_name, baselines):
+    # check if dumps directory exists
+    dump_dir = os.path.abspath('./dumps')
+    if not os.path.exists(dump_dir):
+        os.mkdir(dump_dir)
+    dump_name = '{}_baselines.pickle'.format(task_name)
+    with open(os.path.join(dump_dir, dump_name), 'wb+') as f:
+        pickle.dump(baselines, f)
+
+def load_baselines():
+    dump_dir = os.path.abspath('./dumps')
+    dump_name = 'ed_discrete_baselines.pickle'
+    with open(os.path.join(dump_dir, dump_name)) as f:
+        discrete_baselines = pickle.load(f)
+    dump_name = 'ed_cont_baselines.pickle'
+    with open(os.path.join(dump_dir, dump_name)) as f:
+        cont_baselines = pickle.load(f)
+    return discrete_baselines, cont_baselines
+
+def run_baselines(task_name, baselines, label_pair, train_countries, n_folds=5):
+    # # simple data set for testing the code
+    # X = [(0, 0.1), (1, 1), (2, 2)] * 3
+    # y = [0, 2.1, 3] * 3
+    # n_folds = 2
+    X_train, X_test, y_train, y_test = label_pair
+
+    for name, baseline in baselines.items():
+        # perform cross-validation, may need to reduce number of folds for compute
+        # reduce n_jobs to number of processors to use if CPU overwhelmed (-1 means use all processors) and
+        # reduce pre_dispatch to 'n_jobs' if memory errors occur
+        clf = GridSearchCV(baseline['model'], baseline['hyperparams'], cv=n_folds, pre_dispatch='2*n_jobs', refit=True)
+        clf.fit(X_train, y_train)
+        baselines[name][task_name] = {}
+        baselines[name][task_name]['best_model'] = clf.best_estimator_
+        baselines[name][task_name]['best_hyperparams'] = clf.best_params_
+        print('Task: {}'.format(task_name))
+        country_str = ' '.join(train_countries) if train_countries else 'All countries'
+        print('Countries grid search trained on:\n\t{}'.format(country_str))
+        print('{}: Best performance of {} on {}-fold CV was achieved with hyperparameters:\n{}'
+              .format(name, clf.best_score_, n_folds, clf.best_params_))
+
+    save_baselines(task_name, baselines)
+    return baselines
+
+def run_tests(task_name, baselines, label_pair, train_list, test_list, is_cont):
+
+    print('\nTesting task: {}'.format(task_name))
+
+    metric = 'Pearson correlation' if is_cont else 'mean accuracy'
+    train_str = ' '.join(train_list) if train_list else 'All countries'
+    test_str = ' '.join(test_list) if test_list else 'All countries'
+
+    results = {}
+
+    X_train, X_test, y_train, y_test = label_pair
+    for name, baseline in baselines.items():
+        results[name] = {}
+        best_model = baseline[task_name]['best_model']
+        fit_model = best_model.fit(X_train, y_train)
+        train_score = fit_model.score(X_train, y_train)
+        test_score = fit_model.score(X_test, y_test)
+        print('Performance of {} model as measured with {}'.format(name, metric))
+        print('Countries trained on:\n\t{}'.format(train_str))
+        print('Train score: {}'.format(train_score))
+        print('Countries tested on:\n\t{}'.format(test_str))
+        print('Test score: {}'.format(test_score))
+
+        results[name]['train_score'] = train_score
+        results[name]['test_score'] = test_score
+
+    return results
+
 def main():
     classification_baselines, cont_baselines = generate_baselines()
+
+    run_parameter_tuning = True
 
     train_countries_list = [
         None,
         ['Angola'],
-        ['Rwanda']
+        ['Rwanda'],
+        ['Angola', 'Rwanda']
     ]
     test_countries_list = [
         None,
         ['Angola'],
-        ['Rwanda']
+        ['Rwanda'],
+        ['India']
     ]
 
-    results_list = []
+    test_results = {}
     data_blob = load_data()
+
+    if run_parameter_tuning:
+        tuning_countries = ['Angola', 'Rwanda']
+        param_tuning_label_pairs = generate_data(data_blob, tuning_countries, tuning_countries)
+        cont_baselines = run_baselines('health', cont_baselines, label_pairs['health'], tuning_countries)
+        classification_baselines = run_baselines('ed_discrete', classification_baselines, label_pairs['ed_discrete'], tuning_countries)
+        cont_baselines = run_baselines('ed_cont', cont_baselines, label_pairs['ed_cont'], tuning_countries)
+    else:
+        discrete_baselines, cont_baselines = load_baselines()
+
     for train, test in zip(train_countries_list, test_countries_list):
         label_pairs = generate_data(data_blob, train, test)
 
-        results = {}
-        results['health'] = run_baselines('health', cont_baselines, label_pairs['health'], train)
-        results['ed_discrete'] = run_baselines('ed_discrete', classification_baselines, label_pairs['ed_discrete'], train)
-        results['ed_cont'] = run_baselines('ed_cont', cont_baselines, label_pairs['ed_cont'], train)
-        results_list.append(results)
-
-
+        test_results['health'] = run_tests('health', cont_baselines, label_pairs['health'], train, test, True)
+        test_results['ed_discrete'] = run_tests('ed_discrete', classification_baselines, label_pairs['ed_discrete'], train, test, False)
+        test_results['ed_cont'] = run_tests('ed_cont', cont_baselines, label_pairs['ed_cont'], train, test, True)
 
 
 if __name__ == '__main__':
