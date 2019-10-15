@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn import linear_model, svm, ensemble
 from sklearn.model_selection import GridSearchCV
+import pandas as pd
 import pickle
 import os
 
@@ -87,7 +88,7 @@ def save_baselines(task_name, baselines):
     # check if dumps directory exists
     dump_dir = os.path.abspath('./dumps')
     if not os.path.exists(dump_dir):
-        os.mkdirs(dump_dir)
+        os.mkdir(dump_dir)
     dump_name = '{}_baselines.pickle'.format(task_name)
     with open(os.path.join(dump_dir, dump_name), 'wb+') as f:
         pickle.dump(baselines, f)
@@ -106,7 +107,6 @@ def run_baselines(task_name, baselines, label_pair, n_folds=5):
         # reduce pre_dispatch to 'n_jobs' if memory errors occur
         clf = GridSearchCV(baseline['model'], baseline['hyperparams'], cv=n_folds, n_jobs=-1, pre_dispatch='2*n_jobs', refit=True)
         clf.fit(X_train, y_train)
-
         baselines[name]['best_model'] = clf.best_estimator_
         baselines[name]['best_hyperparams'] = clf.best_params_
         print('{}: Best performance of {} on {}-fold CV was achieved with hyperparameters:\n{}'
@@ -149,11 +149,11 @@ def generate_label_pairs(label_df, wiki_df, label_col, feat_cols,
     merged = wiki_df.merge(label_df, on='cluster_id')
     all_countries = set(train_countries + test_countries)
     # don't bother splitting on irrelevant countries
-    relevant_countries = merged[merged.country.isin(all_countries)]
+    relevant_countries = merged[merged.cluster_country.isin(all_countries)]
     train_df, test_df = train_test_split(relevant_countries, test_size=test_size)
     # filter out into our train and test countries
-    train_df = train_df[train_df.country.isin(train_countries)]
-    test_df = test_df[test_df.country.isin(test_countries)]
+    train_df = train_df[train_df.cluster_country.isin(train_countries)]
+    test_df = test_df[test_df.cluster_country.isin(test_countries)]
 
     X_train = train_df[feat_cols].to_numpy()
     X_test = test_df[feat_cols].to_numpy()
@@ -180,14 +180,14 @@ def generate_data():
     ed_labels_df = generate_ed_label_df(cluster_level_combined_df)
     health_labels_df = cluster_level_combined_df[['cluster_id', 'imr']]
 
-    # wiki_df = load_wiki_df
-    # health_feat_cols = list(col_headers)
-    # educ_feat_cols = list(col_headers)
+    wiki_df = load_wiki_df = pd.read_csv(os.path.join(processed_dir, "geolocation_stats.csv"))
+    health_feat_cols = ["Num Articles Within 10000 Meters of Loc","Avg Word Count","Avg Time Since Last Revision","Educ Article Count"]
+    educ_feat_cols = ["Num Articles Within 10000 Meters of Loc","Avg Word Count","Avg Time Since Last Revision","Health Article Count"]
 
     label_pairs = {}
-    label_pairs['ed_discrete'] = generate_label_pairs(ed_labels_df, wiki_df, 'is_undereducated', ed_feat_cols)
-    label_pairs['ed_cont'] = generate_label_pairs(ed_labels_df, wiki_df, 'ed_score', ed_feat_cols)
-    label_pairs['health'] = generate_label_pairs(health_labels_df, wiki_df, 'imr', health_feat_cols)
+    label_pairs['ed_discrete'] = generate_label_pairs(ed_labels_df, wiki_df, 'is_undereducated', educ_feat_cols, ["Angola", "Rwanda"], ["Angola", "Rwanda"])
+    label_pairs['ed_cont'] = generate_label_pairs(ed_labels_df, wiki_df, 'ed_score', educ_feat_cols, ["Angola", "Rwanda"], ["Angola", "Rwanda"])
+    label_pairs['health'] = generate_label_pairs(health_labels_df, wiki_df, 'imr', health_feat_cols, ["Angola", "Rwanda"], ["Angola", "Rwanda"])
 
     return label_pairs
 
@@ -199,7 +199,7 @@ def main():
     results = {}
     results['health'] = run_baselines('health', cont_baselines, label_pairs['health'])
     results['ed_discrete'] = run_baselines('ed', classification_baselines, label_pairs['ed_discrete'])
-    results['ed_cont'] = run_baselines('ed', classification_baselines, label_pairs['ed_cont'])
+    # results['ed_cont'] = run_baselines('ed', classification_baselines, label_pairs['ed_cont'])
 
 
 
