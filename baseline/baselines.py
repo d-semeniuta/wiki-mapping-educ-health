@@ -162,25 +162,15 @@ def generate_label_pairs(label_df, wiki_df, label_col, feat_cols,
     return X_train, X_test, y_train, y_test
 
 def generate_data():
-    '''
-    TODO: FINISH
-    '''
     data_dir = os.path.abspath('../data')
     processed_dir = os.path.join(data_dir, 'processed')
     cluster_level_combined_file = 'ClusterLevelCombined_5yrIMR_MatEd.csv'
-
-    '''
-    Pseudocode
-    iterate through X,y pairings, e.g.
-        school wiki info, education data
-        hospital wiki info, health data
-    '''
 
     cluster_level_combined_df = pd.read_csv(os.path.join(processed_dir, cluster_level_combined_file))
     ed_labels_df = generate_ed_label_df(cluster_level_combined_df)
     health_labels_df = cluster_level_combined_df[['cluster_id', 'imr']]
 
-    wiki_df = load_wiki_df = pd.read_csv(os.path.join(processed_dir, "geolocation_stats.csv"))
+    wiki_df = pd.read_csv(os.path.join(processed_dir, "geolocation_stats.csv"))
     health_feat_cols = ["Num Articles Within 10000 Meters of Loc","Avg Word Count","Avg Time Since Last Revision","Educ Article Count"]
     educ_feat_cols = ["Num Articles Within 10000 Meters of Loc","Avg Word Count","Avg Time Since Last Revision","Health Article Count"]
 
@@ -198,8 +188,8 @@ def main():
 
     results = {}
     results['health'] = run_baselines('health', cont_baselines, label_pairs['health'])
-    results['ed_discrete'] = run_baselines('ed', classification_baselines, label_pairs['ed_discrete'])
-    # results['ed_cont'] = run_baselines('ed', classification_baselines, label_pairs['ed_cont'])
+    results['ed_discrete'] = run_baselines('ed_discrete', classification_baselines, label_pairs['ed_discrete'])
+    results['ed_cont'] = run_baselines('ed_cont', cont_baselines, label_pairs['ed_cont'])
 
 
 
