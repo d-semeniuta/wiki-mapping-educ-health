@@ -1,27 +1,14 @@
-This is information on how to generate the processed data from raw CSVs
+Data Directory
 
-Required raw data, located in /raw directory:
-  InfantMortality_Cluster5Year.csv
-  InfantMortality_ClusterYear.csv
-  MaternalEducation_cluster.csv
+Expected Directory structure
 
-run 'python3 process_dhs_data.py'
-
-Generates outputs in /processed:
-  MaternalEducation_cluster_flat.csv
-    Flattened cluster level maternal education data. Contains one row per cluster.
-    Each row contains cluster_id, location, and percentage of each education category
-    attained by mothers in the cluster
-  ClusterCoordinates.csv
-    Each row contains cluster id, and lat and long of cluster
-  CountryLevelIMR_1Year.csv
-    Contains IMR aggregated at the country level for each survey year
-  CountryLevelIMR_5Year.csv
-    Contains IMR aggregated at the country level for the 5 year survey spans
-  ClusterLevelCombined_5yrIMR_MatEd.csv
-    Contains combined data of most recent education and imr 5 year surveys
-    at the cluster level
-  CountryLevelCombined_5yr.csv
-    Country level aggregation of most recent 5 year span IMR and maternal education
-  CountryLevelMaternalEducation_flat.csv
-    Contains maternal education aggregated at the country level
+.(data)
+|--raw
+|  |--DHS
+|     |--DHS csv data
+|  |--misc
+|  |--nightlights
+|     |--nighlights data
+|  |--wikipedia
+|     |--wiki data
+|--processed -> output directory for processing
