@@ -62,7 +62,8 @@ def nearestNeighborClustering(dists, cluster_sz=10, method=None):
         assert(starting_pt in set(closest_n))
         dist_costs[closest_n] = -1
         intra_cluster_dists = dists[:, closest_n][closest_n, :]
-        dists[:,closest_n] = 1e100
+        print(np.argpartition(neighbor_dists, cluster_sz)[:this_cluster_sz])
+        dists[:, closest_n] = 1.0e100
 
         mean_dist = np.mean(intra_cluster_dists)
         max_dist = np.max(intra_cluster_dists)
