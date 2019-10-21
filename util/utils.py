@@ -43,7 +43,8 @@ def haversine_dist_scale(dist_metric):
     return metric_scales[dist_metric]
 
 def compute_hav_dist_matrix(A, B, dist_metric=None):
-    """Given two vectors
+    """Given two arrays of lat and lon vectors, calculates pointwise distances.
+        Each row is a coordinate pair of lat and lon
 
     Parameters
     ----------
@@ -67,6 +68,7 @@ def compute_hav_dist_matrix(A, B, dist_metric=None):
 
     lenA, lenB = A.shape[0], B.shape[0]
     if lenB < lenA:
+        # leads to faster run time so we iterate along the shorter matrix
         return compute_hav_dist_matrix(B, A).T
 
     def hav_dist_wrapper(this_coord):
@@ -79,13 +81,27 @@ def compute_hav_dist_matrix(A, B, dist_metric=None):
 
 def testComputeDistMatrix():
     A = np.random.uniform(-360,360,(100,2))
-    B = np.random.uniform(-360,360,(200,2))
+    B = np.random.uniform(-360,360,(5000,2))
     C = compute_hav_dist_matrix(A,B)
-    assert(C.shape == (100,200))
+    assert(C.shape == (100,5000))
     C_T = compute_hav_dist_matrix(B,A)
     assert(np.array_equal(C, C_T.T))
     assert(np.all(C >= 0))
     assert(np.all(C <= np.pi))
+
+    import time
+    def time_me(A, B):
+        times = []
+        for _ in range(100):
+            start = time.time()
+            compute_hav_dist_matrix(A,B)
+            end = time.time()
+            times.append(end-start)
+        print('Average time taken: {}'.format(np.mean(times)))
+
+    # testing the timing of swapping application order
+    time_me(A,B)
+    time_me(B,A)
 
 def main():
     testComputeDistMatrix()
