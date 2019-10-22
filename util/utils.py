@@ -35,6 +35,7 @@ def haversine_dist(this_lat, this_lon, lat_vec, lon_vec):
 def haversine_dist_scale(dist_metric):
     if dist_metric is None:
         return 1
+    # Radius of earth
     metric_scales = {
         'km' : 6371
     }
@@ -77,6 +78,37 @@ def compute_hav_dist_matrix(A, B, dist_metric=None):
     dists = np.apply_along_axis(hav_dist_wrapper, 1, A)
 
     return dists * haversine_dist_scale(dist_metric)
+
+def getCoordinateCentroid(coords):
+    """ Get centroid given an array of coordinates
+
+    Parameters
+    ----------
+    coords : np.array
+        Array of lat long coords of size (a, 2)
+
+    Returns
+    -------
+    tuple
+        Lat and Lon of centroid of given coords
+
+    """
+    # Check we're getting numpy arrays
+    assert(type(coords).__module__ == np.__name__)
+    assert(coords.shape[1] == 2)
+    coords = np.radians(coords)
+    lat, lon = coords[:,0], coords[:,1]
+    # compute location in 3D axis
+    X = np.cos(lat) * np.cos(lon)
+    Y = np.cos(lat) * np.sin(lon)
+    Z = np.sin(lat)
+
+    x, y, z = np.mean(X), np.mean(Y), np.mean(Z)
+    centroid_lon = np.arctan2(y, x)
+    hyp = np.sqrt(x*x + y*y)
+    centroid_lat = np.arctan2(z, hyp)
+
+    return np.degrees(centroid_lat), np.degrees(centroid_lon)
 
 
 def testComputeDistMatrix():
