@@ -9,7 +9,7 @@ imr_5yr_loc = os.path.join(data_dir, 'InfantMortality_Cluster5Year.csv')
 imr_1yr_loc = os.path.join(data_dir, 'InfantMortality_ClusterYear.csv')
 mat_ed_loc = os.path.join(data_dir, 'MaternalEducation_cluster.csv')
 
-def process_imr1yr(imr_1yr):
+def process_imr1yr_country_level(imr_1yr):
     imr_1yr['ndeath'] = imr_1yr.imr * imr_1yr.nbirth
     country_level_imr = imr_1yr.groupby(by=['country', 'child_birth_year'])[['ndeath', 'nbirth']].sum()
     country_level_imr['imr'] = country_level_imr.ndeath / country_level_imr.nbirth
@@ -17,6 +17,12 @@ def process_imr1yr(imr_1yr):
     flat_country_level.to_csv(os.path.join(processed_dir, 'CountryLevelIMR_1Year.csv'), index=False)
 
 def process_imr5yr(imr_5yr):
+    imr_5yr['ndeath'] = imr_5yr['nbirth'] * imr_5yr['imr']
+    imr_5yr['ndeath'] = imr_5yr['ndeath'].round().astype(int)
+    imr_5yr.to_csv(os.path.join(processed_dir, 'IMR_5Year_Cluster.csv'))
+    return imr_5yr
+
+def process_imr5yr_country_level(imr_5yr):
     imr_5yr['ndeath'] = imr_5yr.imr * imr_5yr.nbirth
     country_level_imr = imr_5yr.groupby(by=['country', 'yrgroup'])[['ndeath', 'nbirth']].sum()
     country_level_imr['imr'] = country_level_imr.ndeath / country_level_imr.nbirth
@@ -25,6 +31,33 @@ def process_imr5yr(imr_5yr):
     return flat_country_level
 
 def process_mat_ed(mat_ed):
+    cat_to_meaning = {
+        'pct3': 'higher education', 'pct2': 'secondary education',
+        'pct1': 'primary education', 'pct0': 'no education'
+    }
+    mat_ed_flat = mat_ed
+    for cat in range(4):
+        col = 'pct{}'.format(cat)
+        meaning = cat_to_meaning[col].replace(' ', '_')
+        mat_ed_flat.loc[mat_ed_flat.mother_ed_cat==cat, 'pct_{}'.format(meaning)] = mat_ed_flat.pct
+
+    mat_ed_flat = mat_ed_flat.groupby('cluster_id').agg(max).fillna(0)
+    mat_ed_flat = mat_ed_flat[['country', 'svy_yr', 'ntot', 'lat', 'lon',
+                               'pct_no_education', 'pct_primary_education',
+                               'pct_secondary_education', 'pct_higher_education']].reset_index() \
+                               .rename(columns={'ntot': 'nmothers', 'svy_yr' : 'svy_yr_ed'})
+
+    for ed in ['no', 'primary', 'secondary', 'higher']:
+        pct = 'pct_{}_education'.format(ed)
+        raw = 'raw_{}_education'.format(ed)
+        mat_ed_flat[raw] = mat_ed_flat[pct] * mat_ed_flat.nmothers
+        mat_ed_flat[raw] = mat_ed_flat[raw].round().astype(int)
+
+    mat_ed_flat.to_csv(os.path.join(processed_dir, 'MaternalEducation_cluster_flat.csv'), index=False)
+
+    return mat_ed_flat
+
+def process_mat_ed_country_level(mat_ed):
     mat_ed['npercat'] = mat_ed.pct * mat_ed.ntot
     country_level_ed = mat_ed.groupby(by=['country', 'mother_ed_cat'])[['npercat']].sum()
     country_level_ed = country_level_ed.unstack()['npercat']
@@ -48,30 +81,13 @@ def combine_imr_ed_country_level(country_level_imr, country_level_ed):
     country_level_combined['educated'] = country_level_combined['pct2'] + country_level_combined['pct3']
     country_level_combined.to_csv(os.path.join(processed_dir, 'CountryLevelCombined_5yr.csv'), index=False)
 
-def combine_imr_ed_cluster_level(imr_5yr, mat_ed):
-
-    cat_to_meaning = {
-        'pct3': 'higher education', 'pct2': 'secondary education',
-        'pct1': 'primary education', 'pct0': 'no education'
-    }
-
-    imr_5yr_recent = imr_5yr.loc[imr_5yr.yrgroup=='2011-2015'] \
-        [['cluster_id', 'imr', 'yrgroup']].rename(columns={'yrgroup' : 'yrgroup_imr'})
-    mat_ed_flat = mat_ed
-    for cat in range(4):
-        col = 'pct{}'.format(cat)
-        meaning = cat_to_meaning[col].replace(' ', '_')
-        mat_ed_flat.loc[mat_ed_flat.mother_ed_cat==cat, 'pct_{}'.format(meaning)] = mat_ed_flat.pct
-
-    mat_ed_flat = mat_ed_flat.groupby('cluster_id').agg(max).fillna(0)
-    mat_ed_flat = mat_ed_flat[['country', 'svy_yr', 'ntot', 'lat', 'lon',
-                               'pct_no_education', 'pct_primary_education',
-                               'pct_secondary_education', 'pct_higher_education']].reset_index() \
-                               .rename(columns={'ntot': 'nmothers', 'svy_yr' : 'svy_yr_ed'})
-    mat_ed_flat.to_csv(os.path.join(processed_dir, 'MaternalEducation_cluster_flat.csv'), index=False)
+def combine_imr_ed_cluster_level(imr_5yr, mat_ed_flat):
+    imr_cols_to_use = ['cluster_id', 'imr', 'ndeath', 'nbirth', 'yrgroup']
+    imr_5yr_recent = imr_5yr.loc[imr_5yr.yrgroup=='2011-2015'][imr_cols_to_use].rename(columns={'yrgroup' : 'yrgroup_imr'})
 
     cluster_level_combined = pd.merge(mat_ed_flat, imr_5yr_recent, on='cluster_id', how='inner')
     cluster_level_combined.to_csv(os.path.join(processed_dir, 'ClusterLevelCombined_5yrIMR_MatEd.csv'), index=False)
+    return cluster_level_combined
 
 def build_cluster_info(imr_1yr, imr_5yr, mat_ed):
     df1 = mat_ed[['country', 'cluster_id', 'lat', 'lon']]
@@ -84,12 +100,14 @@ def main():
     imr_1yr = pd.read_csv(imr_1yr_loc)
     imr_5yr = pd.read_csv(imr_5yr_loc)
     mat_ed = pd.read_csv(mat_ed_loc)
-    
-    process_imr1yr(imr_1yr)
-    country_level_imr = process_imr5yr(imr_5yr)
-    flat_country_level_ed = process_mat_ed(mat_ed)
+
+    process_imr1yr_country_level(imr_1yr)
+    country_level_imr = process_imr5yr_country_level(imr_5yr)
+    flat_country_level_ed = process_mat_ed_country_level(mat_ed)
     combine_imr_ed_country_level(country_level_imr, flat_country_level_ed)
-    combine_imr_ed_cluster_level(imr_5yr, mat_ed)
+    imr_5yr_raw = process_imr5yr(imr_5yr)
+    mat_ed_flat = process_mat_ed(mat_ed)
+    cluster_level_combined = combine_imr_ed_cluster_level(imr_5yr_raw, mat_ed_flat)
 
     build_cluster_info(imr_1yr, imr_5yr, mat_ed)
 
