@@ -51,7 +51,7 @@ def segment_all_articles(file_path, min_article_character=200, workers=None, inc
 
 
 def segment_and_write_all_articles(file_path, output_file, min_article_character=200, workers=None,
-                                   include_interlinks=False):
+                                   include_interlinks=False, coords_only=True):
     """Write article title and sections to `output_file` (or stdout, if output_file is None).
     The output format is one article per line, in json-line format with 4 fields::
         'title' - title of article,
@@ -71,12 +71,13 @@ def segment_and_write_all_articles(file_path, output_file, min_article_character
         Number of parallel workers, max(1, multiprocessing.cpu_count() - 1) if None.
     include_interlinks: bool
         Whether or not interlinks should be included in the output
+    coords_only: bool
+        Whether or not to only include articles with coordinates in the output file
     """
     if output_file is None:
         outfile = getattr(sys.stdout, 'buffer', sys.stdout)  # we want write bytes, so for py3 we used 'buffer'
     else:
         outfile = gensim.utils.open(output_file, 'wb')
-
     try:
         article_stream = segment_all_articles(file_path, min_article_character, workers=workers,
                                               include_interlinks=include_interlinks)
@@ -89,10 +90,14 @@ def segment_and_write_all_articles(file_path, output_file, min_article_character
                 "title": article_title,
                 "section_titles": [],
                 "section_texts": [],
-                "coordinates": list(coordinates)
             }
             if include_interlinks:
                 output_data["interlinks"] = interlinks
+
+            if coordinates is not None:
+                output_data["coordinates"] = list(coordinates)
+            else:
+                output_data["coordinates"] = None
 
             for section_heading, section_content in article_sections:
                 output_data["section_titles"].append(section_heading)
@@ -100,7 +105,11 @@ def segment_and_write_all_articles(file_path, output_file, min_article_character
 
             if (idx + 1) % 100000 == 0:
                 logger.info("processed #%d articles (at %r now)", idx + 1, article_title)
-            outfile.write((json.dumps(output_data) + "\n").encode('utf-8'))
+            if coords_only:
+                if coordinates is not None:
+                    outfile.write((json.dumps(output_data) + "\n").encode('utf-8'))
+            else:
+                outfile.write((json.dumps(output_data) + "\n").encode('utf-8'))
 
     finally:
         if output_file is not None:
@@ -434,6 +443,11 @@ if __name__ == "__main__":
              '"interlinks": [("article_title_1", "interlink_text_1"), ("article_title_2", "interlink_text_2"), ...]',
         action='store_true'
     )
+    parser.add_argument(
+        '-c', '--coords-only',
+        help='Only writes articles with coordinates to the output file. Default: ',
+        action='store_true'
+    )
     args = parser.parse_args()
 
     logger.info("running %s", " ".join(sys.argv))
@@ -441,7 +455,8 @@ if __name__ == "__main__":
         args.file, args.output,
         min_article_character=args.min_article_character,
         workers=args.workers,
-        include_interlinks=args.include_interlinks
+        include_interlinks=args.include_interlinks,
+        coord_only = args.coords_only
     )
 
     logger.info("finished running %s", sys.argv[0])
