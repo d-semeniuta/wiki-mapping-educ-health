@@ -9,6 +9,7 @@ sys.path.append(repo_head_dir)
 
 from util.utils import haversine_dist
 
+
 def parseArgs():
     """ Get cluster size from the command line
     """
@@ -18,6 +19,7 @@ def parseArgs():
 
     args = parser.parse_args()
     return args.clustersize
+
 
 def nearestNeighborClustering(dists, cluster_sz=10, method=None):
     """Performs clustering using nearest neighbor
@@ -72,6 +74,7 @@ def nearestNeighborClustering(dists, cluster_sz=10, method=None):
 
     return clusters
 
+
 def get_dist_matrix(df):
     """Generates distance matrix between all points
 
@@ -94,12 +97,13 @@ def get_dist_matrix(df):
         dists[i] = haversine_dist(this_lat, this_lon, lat_vec, lon_vec)
     return dists
 
+
 def generateSuperClusters(cluster_df, cluster_sz=10):
     countries = cluster_df.country.unique()
     country_dfs = []
     for country in countries:
         print('Now clustering for {}...'.format(country), flush=True)
-        country_df = cluster_df.loc[cluster_df.country==country]
+        country_df = cluster_df.loc[cluster_df.country == country]
         country_code = country_df.cluster_id.iloc[0][:2]
         pre_dists = get_dist_matrix(country_df)
         dists = np.copy(pre_dists)
