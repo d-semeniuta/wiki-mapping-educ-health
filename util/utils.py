@@ -115,7 +115,7 @@ def getCoordinateCentroid(coords):
     return np.degrees(centroid_lat), np.degrees(centroid_lon)
 
 def produce_geo_scatter_plot(df, title, img_name, countries=None, color_col=None,
-                    size_col=None, geo_scope=None, out_dir=OUT_DIR, img_format='svg'):
+                    size_col=None, out_dir=OUT_DIR, img_format='svg'):
     """ Produce geo plot of desired data
     To install requirements:
         conda install -c plotly plotly-orca psutil requests
@@ -134,8 +134,6 @@ def produce_geo_scatter_plot(df, title, img_name, countries=None, color_col=None
         Column which decides color of markers
     size_col : string
         Column which decides size of markers
-    geo_scope : string
-        Region which to focus map on (see plot.ly docs)
     out_dir : string
         Path where to save image
     img_format : string
@@ -166,7 +164,7 @@ def produce_geo_scatter_plot(df, title, img_name, countries=None, color_col=None
             )))
     fig.update_layout(
             title = title,
-            geo_scope = geo_scope
+            geo_scope = None
         )
     fig.write_image(os.path.join(out_dir, '{}.{}'.format(img_name, img_format)))
 
