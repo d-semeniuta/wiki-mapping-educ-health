@@ -16,6 +16,7 @@ import multiprocessing
 # from util_corpora import *
 import torch
 from torch import nn
+import torch.nn.functional as F
 import numpy as np
 import datetime
 
@@ -23,7 +24,7 @@ smokescreen = True
 
 
 class WikiEmbRegressor(nn.Module):
-    def __init__(self, emb_size=300, n_embs=10, ave_embs=False, concat=True, MEL_IMR=True):
+    def __init__(self, emb_size=300, n_embs=10, ave_embs=False, concat=True, MEL_IMR=True, dists=False):
         '''
         NN model for regression of maternal education level (MEL) and infant mortality rate (IMR)
         emb_size: (int) size of input Wikipedia article embeddings
@@ -40,11 +41,18 @@ class WikiEmbRegressor(nn.Module):
         np.random.seed(1234)
         self.concat = concat
         self.MEL_IMR = MEL_IMR
+        self.dists = dists
 
-        if self.concat:
-            self.input_shape = self.emb_size * self.n_embs + self.n_embs
+        if dists:
+            if self.concat:
+                self.input_shape = self.emb_size * self.n_embs
+            else:
+                self.input_shape = self.emb_size
         else:
-            self.input_shape = self.emb_size + 1
+            if self.concat:
+                self.input_shape = self.emb_size * self.n_embs + self.n_embs
+            else:
+                self.input_shape = self.emb_size + 1
 
         if MEL_IMR:
             self.model = nn.Sequential(
@@ -52,7 +60,8 @@ class WikiEmbRegressor(nn.Module):
                 nn.Linear(512, 256), nn.ReLU(),
                 nn.Linear(256, 128), nn.ReLU(),
                 nn.Linear(128, 32), nn.ReLU(),
-                nn.Linear(32, 4)
+                nn.Linear(32, 4),
+                nn.Softmax(),
             )
         else:
             self.model = nn.Sequential(
@@ -63,22 +72,27 @@ class WikiEmbRegressor(nn.Module):
                 nn.Linear(32, 1)
             )
 
-        self.optimizer = torch.optim.Adam(self.model.parameters())
-
-    def forward(self, embs, dists):
+    def forward(self, embs, dists=None):
         # embs: Torch tensor, shape (batch_size, n_embs, emb_size)
         # dists: Torch tensor, shape (batch_size, n_embs, 1)
 
         if self.ave_embs:
             embs = embs.mean(dim=1)
-            dists = dists.mean(dim=1)
+            if dists is not None:
+                dists = dists.mean(dim=1)
         else:
             embs = embs.reshape((embs.shape[0], -1))
-            dists = dists.reshape((dists.shape[0], -1))
+            if dists is not None:
+                dists = dists.reshape((dists.shape[0], -1))
 
-        inputs = torch.cat([embs, dists], dim=-1)
+        if dists:
+            inputs = torch.cat([embs, dists], dim=-1)
+        else:
+            inputs = embs
 
-        return self.model(inputs)
+        out = self.model(inputs)
+
+        return out
 
 
 # old code from previous year that does not run currently without data_processor module

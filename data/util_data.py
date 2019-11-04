@@ -3,8 +3,97 @@ import numpy as np
 import pandas as pd
 from sklearn import neighbors
 import time
+import torch
+from torch.utils.data import Dataset, DataLoader
 
-class DataLoader:
+
+class DHS_Wiki_Dataset(Dataset):
+    """Data set class for the IMR-Maternal Education Level DHS-Wikipedia project"""
+
+    def __init__(self, DHS_csv_file,
+                 emb_root_dir, cluster_rank_csv_path, emb_dim=300, n_articles=5, include_dists=True,
+                 country_subset=None, task='IMR',
+                 transforms=None):
+        """
+        Args:
+            HS_csv_file (string): Path to the csv file with DHS cluster values for IMR,
+                as normalized rates, and maternal education level, as percents.
+            emb_root_dir (string): Directory with all Wikipedia article embeddings.
+            transforms (callable, optional): List of optional transforms to be applied
+                consecutively on a sample.
+        """
+        self.DHS_frame = pd.read_csv(DHS_csv_file)
+        self.emb_root_dir = emb_root_dir
+        self.emb_dim = emb_dim
+        self.n_articles = n_articles
+        self.cluster_rank_csv_path = cluster_rank_csv_path
+        self.cluster_article_rank_dist = pd.read_csv(self.cluster_rank_csv_path)
+        self.include_dists = include_dists
+        self.country_subset = country_subset
+        self.task = task
+
+        self.transforms = transforms
+        if self.country_subset:
+            self.subset(self.country_subset)
+
+    def __len__(self):
+        return len(self.DHS_frame)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        if self.task == 'IMR':
+            outcome = self.DHS_frame['imr'].iloc[idx]
+            outcome = np.array([outcome]).astype('float32')
+        elif self.task == 'MatEd':
+            outcome = self.DHS_frame[['pct_no_education',
+                                     'pct_primary_education',
+                                     'pct_secondary_education',
+                                     'pct_higher_education']].iloc[idx]
+            outcome = np.array([outcome]).astype('float32').squeeze()
+            outcome = outcome/np.sum(outcome)
+
+        if self.include_dists:
+            article_embeddings = np.zeros((self.n_articles, self.emb_dim+1))
+        else:
+            article_embeddings = np.zeros((self.n_articles, self.emb_dim))
+
+        # convert index into data set to index into DHS clusters
+        idx_cluster = self.DHS_frame.id.iloc[idx]
+        for k in range(self.n_articles):
+            # convert index into DHS clusters into index into article embeddings
+            article_idx = self.cluster_article_rank_dist['id_knn_{}'.format(k)].iloc[idx_cluster]
+            emb = np.load(os.path.join(self.emb_root_dir, str(article_idx) + '.npy'))
+
+            if self.include_dists:
+                d = self.cluster_article_rank_dist['dist_{}'.format(k)].iloc[idx_cluster]
+                article_embeddings[k] = np.concatenate([emb, np.expand_dims(d, axis=0)])
+            else:
+                article_embeddings[k] = emb
+
+        if self.include_dists:
+            article_embeddings = article_embeddings.reshape((self.n_articles * (self.emb_dim+1),)).astype('float32')
+        else:
+            article_embeddings = article_embeddings.reshape((self.n_articles * self.emb_dim,)).astype('float32')
+
+        sample = {'x': article_embeddings, 'y': outcome}
+
+        if self.transforms:
+            sample = self.transforms(sample)
+
+        return sample
+
+    def subset(self, countries):
+        # country: list of str matching one of the country names in the DHS data set, specifically in the .csv file at the path
+        #          locations given for the train/val/test sets
+        # country_idx = self.train_set.country.isin(countries)
+        self.DHS_frame = self.DHS_frame.loc[self.DHS_frame.country.isin(countries)]
+
+def make_hp_dir(hp_dict):
+    return str(hp_dict).translate(''.maketrans({'\'': '', ' ': '_', '{': '', '}': '', ',': '', '[': '', ']': '', ':':''}))
+
+class MyDataLoader:
     def __init__(self, modes, train_path, val_path, test_path, country_subset = None, args=None, preload=True, seed=0, K=10):
         """
         Loads batches of data from given data sets
@@ -62,11 +151,17 @@ class DataLoader:
         # self.train_indices_left = self.train_set['id'].to_numpy()  #np.arange(len(self.train_set))
         # self.val_indices_left = self.val_set['id'].to_numpy()  #np.arange(len(self.val_set))
         # self.test_indices_left = self.test_set['id'].to_numpy()  #np.arange(len(self.test_set))
-        self.train_indices_left = np.random.shuffle(np.arange(len(self.train_set)))
-        self.val_indices_left = np.random.shuffle(np.arange(len(self.val_set)))
-        self.test_indices_left = np.random.shuffle(np.arange(len(self.test_set)))
+        self.train_indices_left = np.arange(len(self.train_set))
+        self.val_indices_left = np.arange(len(self.val_set))
+        self.test_indices_left = np.arange(len(self.test_set))
+        np.random.shuffle(self.train_indices_left)
+        np.random.shuffle(self.val_indices_left)
+        np.random.shuffle(self.test_indices_left)
+        self.i_train = 0
+        self.i_val = 0
+        self.i_test = 0
 
-    def sample_batch(self, batchsize, batch_type):
+    def sample_batch(self, batchsize, batch_type, device, dtype):
         # sample batches from given data set without replacement epoch by epoch
         assert (batch_type == 'train' or batch_type == 'val' or batch_type == 'test'), \
                                         'Batch type must "train", "val", or "test"'
@@ -74,48 +169,58 @@ class DataLoader:
         if batch_type == 'train':
             data_set = self.train_set
             indices_left = self.train_indices_left
+            i = self.i_train
         elif batch_type == 'val':
             data_set = self.val_set
             indices_left = self.val_indices_left
+            i = self.i_val
         elif batch_type == 'test':
             data_set = self.test_set
             indices_left = self.test_indices_left
+            i = self.i_test
 
-        if len(indices_left) >= batchsize:
-            # idx = np.random.choice(len(indices_left), batchsize, replace=False)
-            batch.append(data_set.iloc[indices_left[self.i:self.i+batchsize]])
-            self.i += batchsize
-            # batch = data_set.iloc[indices_left[[idx]]]
-            # indices_left = np.delete(indices_left, idx)
+        if len(indices_left) - i >= batchsize:
+            batch = data_set.iloc[indices_left[i:i+batchsize]]
+            print(i)
+            print(self.i_train)
+            print(batchsize)
+            print(len(indices_left))
+
+            if 'embeddings' in self.modes:
+                X = self.get_article_embeddings(cluster_idx=data_set.id.iloc[indices_left[i:i+batchsize]].to_numpy(),
+                                                n_articles=self.K,
+                                                emb_dim=300, include_dists=('distances' in self.modes))
+
+            i += batchsize
             self.epoch_flag = False
         else:
-            # batch = data_set.iloc[indices_left]
-            # indices_left = data_set['id'].to_numpy()
-            indices_left = np.random.shuffle(indices_left)
-            self.i = 0
-
-            # indices_left = np.arange(len(data_set))
-            # BATCHES NOT EXCLUSIVE HERE
-            # idx = np.random.choice(len(indices_left), batchsize - len(batch), replace=False)
-            # idx = np.random.choice(len(indices_left), batchsize, replace=False)
-            batch.append(data_set.iloc[indices_left[self.i:self.i+batchsize]])
-            self.i += batchsize
-            # indices_left = np.delete(indices_left, idx)
+            np.random.shuffle(indices_left)
+            i = 0
+            batch = data_set.iloc[indices_left[i:i+batchsize]]
             self.epoch_flag = True
 
+            if 'embeddings' in self.modes:
+                X = self.get_article_embeddings(cluster_idx=data_set.id.iloc[indices_left[i:i+batchsize]].to_numpy(),
+                                                n_articles=self.K,
+                                                emb_dim=300, include_dists=('distances' in self.modes))
+            i += batchsize
+
+        if batch_type == 'train':
+            self.i_train = i
+        elif batch_type == 'val':
+            self.i_val = i
+        elif batch_type == 'test':
+            self.i_test = i
+
+        X = torch.Tensor(X).to(device=device, dtype=dtype)  # move to device, e.g. GPU
         if 'IMR' in self.modes:
             y = batch['imr'].to_numpy()
+            y = torch.Tensor(y).to(device=device, dtype=torch.float32)
         elif 'MatEd' in self.modes:
-            y = batch['pct_no_education', 'pct_primary_education',
-                      'pct_secondary_education', 'pct_higher_education'].to_numpy()/100.0
+            y = batch[['pct_no_education', 'pct_primary_education',
+                      'pct_secondary_education', 'pct_higher_education']].to_numpy()/100.0
+            y = torch.Tensor(y).to(device=device, dtype=torch.long)
 
-        if 'embeddings' in self.modes:
-            X = self.get_article_embeddings(cluster_idx=data_set.id[indices_left[idx]].to_numpy(), n_articles=self.K,
-                                            emb_dim=300, include_dists=('distances' in self.modes))
-            # X = X.reshape(batchsize, -1)
-
-        # MAKE BATCH ONLY RETURN I/O PAIRS AS DICT OF NUMPY ARRAYS EVENTUALLY FOR MULTI-MODAL DATA?
-        # HOPEFULLY WILL STILL BE ABLE TO JUST CONCATENATE NUMPY ARRAYS TOGETHER
         return X, y
 
     def subset(self, countries):
@@ -301,7 +406,7 @@ def main():
     # run = 'validate_articles'  # output CSV with articles IDs and article coordinates for each article that has a
                                 # corresponding .npy file
     # run = 'compute_nearest_articles' # compute array of indices and distances of K nearest articles to all DHS clusters
-    run = 'form_split' # form train/val/test split of DHS clusters
+    run = 'torch_batch' # form train/val/test split of DHS clusters
 
     # tests:
     # run = 'batch'  # test full batching
@@ -341,6 +446,118 @@ def main():
         if save:
             print('Saved CSV of indices and distances of {} nearest neighbors to queries to {}'.format(K, save_path))
 
+    # test batching with torch DataLoader class
+    if run == 'torch_batch':
+        article_embeddings_dir = os.path.join(os.curdir, 'raw', 'wikipedia', 'doc2vec_embeddings')
+        cluster_article_rank_dist_path = os.path.join(os.curdir, 'processed',
+                                                      'ClusterNearestArticles_Rank_Dist.csv')
+
+        hps = []
+        n_articles_nums = [1, 3]
+        tasks = ['IMR', 'MatEd']
+        countries_train_set = [None, ['Rwanda']]
+        with_dists_hp = [False, True]
+        emb_dims = [300]
+        batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [256, 1000, 1000])}
+
+        for n_articles in n_articles_nums:
+            for task in tasks:
+                for countries_train in countries_train_set:
+                    for emb_dim in emb_dims:
+                        for include_dists in [False, True]:
+                            hps.append(({'n_articles': n_articles, 'task': task,
+                                         'countries_train': countries_train,
+                                         'emb_dim': emb_dim, 'include_dists': include_dists}))
+
+        idx_to_check = [0, 5, 10, 16, 21]
+
+        for hp in hps:
+            print('running with ')
+            print(hp)
+
+            task = hp['task']
+            n_articles = hp['n_articles']
+            modes = [task] + ['embeddings'] + ['distances']
+            country_train = hp['countries_train']
+
+            task = hp['task']
+            n_articles = hp['n_articles']
+            modes = [task] + ['embeddings'] + ['distances']
+            country_train = hp['countries_train']
+            include_dists = hp['include_dists']
+
+            train_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_train.csv')
+            # val_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_val.csv')
+            # test_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_test.csv')
+
+            datasets = {phase: DHS_Wiki_Dataset(DHS_csv_file=train_path,  # test only with train set
+                                                  emb_root_dir=article_embeddings_dir,
+                                                  cluster_rank_csv_path=cluster_article_rank_dist_path,
+                                                  emb_dim=hp['emb_dim'], n_articles=n_articles, include_dists=hp['include_dists'],
+                                                  country_subset=country_train, task=task,
+                                                  transforms=None)
+                        for phase in ['train', 'val', 'test']}
+            data_loaders = {phase: DataLoader(datasets[phase], batch_size=batch_sizes[phase], shuffle=True, num_workers=0)
+                            for phase in ['train', 'val', 'test']}
+
+            DHS_train_frame = pd.read_csv(train_path)
+            if country_train:
+                DHS_train_frame = DHS_train_frame.loc[DHS_train_frame.country.isin(countries_train)]
+
+            cluster_article_rank_dist_frame = pd.read_csv(cluster_article_rank_dist_path)
+
+            for idx in idx_to_check:
+                item = datasets['train'].__getitem__(idx)
+                x = item['x']
+                y = item['y']
+
+                # check batch shapes
+                # assert isinstance(x, torch.Tensor) and isinstance(y, torch.Tensor)
+                # assert x.shape == torch.Size((hp['emb_dim']+1,)) if hp['include_dists'] \
+                #             else x.shape == torch.Size((hp['emb_dim'],))
+                # assert y.shape == torch.Size((1,))
+                assert x.shape == (n_articles*(hp['emb_dim']+1),) if hp['include_dists'] \
+                            else x.shape == (n_articles*hp['emb_dim'],)
+                if task == 'IMR':
+                    assert y.shape == (1,)
+                elif task == 'MatEd':
+                    assert y.shape == (4,)
+
+                #, Unnamed: 0, cluster_id, country, svy_yr_ed, nmothers, lat, lon, pct_no_education, pct_primary_education, pct_secondary_education, pct_higher_education, imr, yrgroup_imr, id
+                # (0, 14, 'AM2015_111', 'Armenia', 2015, 11, 40.049908123899996, 44.2166119221, 0.0, 0.272727272727273, 0.545454545454545, 0.18181818181818202, 0.0, '2011 - 2015', 14)
+
+                DHS_item_true = DHS_train_frame.iloc[idx]
+
+                # check batch item values for selected indices
+                if hp['task'] == 'IMR':
+                    y_true = np.array([DHS_item_true['imr']]).astype('float32')
+                    assert y.item() == y_true
+                elif hp['task'] == 'MatEd':
+                    y_true = np.array([DHS_item_true['pct_no_education',
+                                             'pct_primary_education',
+                                             'pct_secondary_education',
+                                             'pct_higher_education']]).astype('float32')
+                    y_true = y_true/np.sum(y_true)
+                    assert np.all(y.item() == y_true)
+
+                idx_cluster = DHS_train_frame.id.iloc[idx]
+                if include_dists:
+                    embs = np.zeros((n_articles, emb_dim+1))
+                else:
+                    embs = np.zeros((n_articles, emb_dim))
+                for n in range(n_articles):
+                    emb_id = int(cluster_article_rank_dist_frame.iloc[idx_cluster]['id_knn_{}'.format(n)])
+                    emb = np.load(os.path.join(article_embeddings_dir, str(emb_id) + '.npy'))
+                    if include_dists:
+                        d = cluster_article_rank_dist_frame.iloc[idx_cluster]['dist_{}'.format(n)]
+                        embs[n] = np.concatenate([emb, np.array([d])])
+                    else:
+                        embs[n] = emb
+
+                x_true = embs.reshape(-1).astype('float32')
+                assert np.all(x == x_true)
+        print('All tests passed.')
+
     if run == 'batch' or run == 'all':
         train_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_train.csv')
         val_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_val.csv')
@@ -351,7 +568,7 @@ def main():
         batchsize = 10
         emb_dim = 300
         n_articles = 10
-        data_loader = DataLoader(modes, train_path, val_path, test_path, K=n_articles,
+        data_loader = MyDataLoader(modes, train_path, val_path, test_path, K=n_articles,
                                  country_subset=country_subset)
         X, y = data_loader.sample_batch(batchsize=batchsize, batch_type='val')
         assert X.shape == (batchsize, n_articles, (emb_dim + 1))
@@ -360,14 +577,14 @@ def main():
         elif 'MatEd' in modes:
             assert y.shape == (batchsize, 4)
 
-    if run == 'country_subset' or 'all':
+    if run == 'country_subset' or run == 'all':
         train_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_train.csv')
         val_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_val.csv')
         test_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_test.csv')
 
         modes = []
         country_subset = ['Rwanda', 'Angola']
-        data_loader = DataLoader(modes, train_path, val_path, test_path, country_subset=country_subset)
+        data_loader = MyDataLoader(modes, train_path, val_path, test_path, country_subset=country_subset)
         assert data_loader.train_set.country.isin(country_subset).all() and \
                data_loader.val_set.country.isin(country_subset).all() and \
                data_loader.test_set.country.isin(country_subset).all(), 'Country subsetting allowing other items beyond given countries'
@@ -381,7 +598,7 @@ def main():
         test_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_test.csv')
 
         modes = []
-        data_loader = DataLoader(modes, train_path, val_path, test_path)
+        data_loader = MyDataLoader(modes, train_path, val_path, test_path)
 
         start = time.time()
 
@@ -425,7 +642,7 @@ def main():
         test_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_test.csv')
 
         modes = []
-        data_loader = DataLoader(modes, train_path, val_path, test_path)
+        data_loader = MyDataLoader(modes, train_path, val_path, test_path)
         batchsize = 5
         batch_type = 'train'
         n_epoch_points_init = len(data_loader.train_indices_left)
