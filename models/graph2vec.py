@@ -6,7 +6,7 @@ import pandas as pd
 import networkx as nx
 from tqdm import tqdm
 from joblib import Parallel, delayed
-from parser import parameter_parser
+from graph_parser import parameter_parser
 import numpy.distutils.system_info as sysinfo
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 
