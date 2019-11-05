@@ -1,4 +1,5 @@
 raw/
 processed/
 runs/
+zips/
 *.pyc
