@@ -5,20 +5,22 @@
     Loads the array of coordinate articles and trains a doc2vec model on them
 '''
 
-import sys
+# imports for gensim model
+# import sys
 # from data_processor import *
-import gensim
-from gensim.models.doc2vec import TaggedDocument
-import os
-import collections
-import random
-import multiprocessing
+# import gensim
+# from gensim.models.doc2vec import TaggedDocument
+# import os
+# import collections
+# import random
+# import multiprocessing
 # from util_corpora import *
+
+# imports for WikiEmbRegressor
 import torch
 from torch import nn
-import torch.nn.functional as F
+# import torch.nn.functional as F
 import numpy as np
-import datetime
 
 smokescreen = True
 
@@ -61,7 +63,7 @@ class WikiEmbRegressor(nn.Module):
                 nn.Linear(256, 128), nn.ReLU(),
                 nn.Linear(128, 32), nn.ReLU(),
                 nn.Linear(32, 4),
-                nn.Softmax(),
+                nn.Softmax(dim=1),
             )
         else:
             self.model = nn.Sequential(

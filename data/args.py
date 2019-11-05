@@ -32,7 +32,7 @@ def get_args():
     #     default=0.99,
     #     help='RMSprop optimizer apha (default: 0.99)')
     parser.add_argument(
-        '--seed', type=int, default=1, help='random seed (default: 1)')
+        '--seed', type=int, default=7, help='random seed (default: 7)')
     parser.add_argument(
         '--cuda-deterministic',
         action='store_true',

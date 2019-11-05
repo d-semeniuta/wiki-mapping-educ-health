@@ -17,6 +17,7 @@ from models.models import WikiEmbRegressor
 from args import get_args
 
 def main():
+    full_start = time.time()
     args = get_args()
     USE_GPU = True
 
@@ -41,7 +42,8 @@ def main():
         os.mkdir(logdir)
 
     logdir_full = os.path.join(os.getcwd(), logdir)
-    hp_writer = SummaryWriter(log_dir=logdir)
+    all_hyperparam_dir = os.path.join(logdir, 'hyperpars')
+    hp_writer = SummaryWriter(log_dir=all_hyperparam_dir)
 
     article_embeddings_dir = os.path.join(os.curdir, 'raw', 'wikipedia', 'doc2vec_embeddings')
     cluster_article_rank_dist_path = os.path.join(os.curdir, 'processed',
@@ -50,13 +52,15 @@ def main():
     # hyperparameters
     hps = {}
 
-    countries = [['Ghana'], ['Zimbabwe'], ['Kenya'], ['Egypt'], ['Rwanda']]
+    countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']#, 'Rwanda']
     cross_countries = False
     if cross_countries:
-        countries_train_set, countries_test_set = util_data.make_country_cross_comparison(countries)
+        countries_train_set, countries_test_sets = util_data.make_country_cross_comparison(countries)
+        countries_val_sets = countries_train_set
     else:
         countries_train_set = [['Kenya', 'Ghana', 'Zimbabwe']]
-        countries_test_set = [['Egypt', 'Rwanda']]
+        countries_val_sets = [['Egypt', 'Rwanda']]
+        countries_test_sets = [[['Egypt', 'Rwanda'], ['Zimbabwe']]]
 
     # arguments
     smokescreen = args.smokescreen
@@ -70,7 +74,8 @@ def main():
         batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [256, 1000, 1000])}
         # eval_batchsize=1000
         countries_train_set = [['Rwanda']]
-        countries_test_set = [['Rwanda']]
+        countries_val_sets = [['Benin']]
+        countries_test_sets = [[['Rwanda'], ['Benin']]]
     else:
         epochs = 10
         eval_every = 50
@@ -100,17 +105,32 @@ def main():
             for n_articles in n_articles_nums:
                 for task in tasks:
                     for countries_train in countries_train_set:
-                        hps.append(({'n_articles':n_articles, 'task': task, 'reg':reg, 'lr':lr, 'countries_train': countries_train}))
+                        hps.append(({'n_articles':n_articles, 'task': task, 'reg':reg, 'lr':lr, 'cty_trn': countries_train}))
 
     # either load hyperparameters from previous experiment or save current hyperparameters for new experiment
     if args.load:
-        with open(os.path.join(logdir, 'hyperparam_list.pkl'), 'rb') as f:
+        with open(os.path.join(all_hyperparam_dir, 'hyperparam_list.pkl'), 'rb') as f:
             hps = pickle.load(f)
     else:
-        with open(os.path.join(logdir, 'hyperparam_list.pkl'), 'wb') as f:
+        with open(os.path.join(all_hyperparam_dir, 'hyperparam_list.pkl'), 'wb') as f:
             pickle.dump(hps, f)
 
-    for hp in hps:
+    DHS_path = os.path.join(os.path.curdir, 'processed', 'ClusterLevelCombined_5yrIMR_MatEd.csv')
+    # train_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_train.csv')
+    # val_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_val.csv')
+    # test_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_test.csv')
+    # set_paths = {phase: path for phase, path in zip(['train', 'val', 'test'], [train_path, val_path, test_path])}
+
+    datasets = {phase: util_data.DHS_Wiki_Dataset(DHS_csv_file=DHS_path,
+                    emb_root_dir=article_embeddings_dir, cluster_rank_csv_path=cluster_article_rank_dist_path,
+                    emb_dim=300, n_articles=n_articles, include_dists=True,
+                    country_subset=None, task=task,
+                    transforms=None)
+                for phase in ['train', 'val']}
+
+    final_loss_metric_dict = {}
+
+    for hp_i, hp in enumerate(hps):
         print('running with ')
         print(hp)
 
@@ -119,36 +139,42 @@ def main():
         model_folder = 'model'
         vis_folder = 'vis'
 
+        assert len(os.path.abspath(hp_log_dir)) < 200, 'subdirectory for specific hyperparameter log too long (over 200 characters, full 260 on Windows), run will not execute properly'
+
+        writer = SummaryWriter(log_dir=hp_log_dir)  # can't use directory inside log_dir for additional writers for some reason
+
         if not args.load:
-            os.mkdir(hp_log_dir)
+            # os.mkdir(hp_log_dir)
             os.mkdir(os.path.join(hp_log_dir, model_folder))
             os.mkdir(os.path.join(hp_log_dir, vis_folder))
-
-        writer = SummaryWriter(hp_folder) #hp_log_dir)#hp_folder)
-        #     os.mkdir(hp_log_dir)
-        #     os.mkdir(os.path.join(hp_log_dir, model_folder))
-        #     os.mkdir(os.path.join(hp_log_dir, vis_folder))
-        #
-        # writer = SummaryWriter(hp_log_dir)
 
         task = hp['task']
         n_articles = hp['n_articles']
         modes = [task] + ['embeddings'] + ['distances']
-        country_train = hp['countries_train']
+        country_subsets = {}
+        country_subsets['train'] = hp['cty_trn']
+        country_subsets['val'] = countries_val_sets[hp_i]
 
-        train_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_train.csv')
-        val_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_val.csv')
-        test_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_test.csv')
-        set_paths = {phase: path for phase, path in zip(['train', 'val', 'test'], [train_path, val_path, test_path])}
+        hp_key = []
+        for k , v in hp.items():
+            if isinstance(v, list):
+                hp_key.append((k, tuple(v)))
+            else:
+                hp_key.append((k, v))
+        hp_key = tuple(hp_key)
 
-        datasets = {phase: util_data.DHS_Wiki_Dataset(DHS_csv_file=set_paths[phase],
-                        emb_root_dir=article_embeddings_dir, cluster_rank_csv_path=cluster_article_rank_dist_path,
-                        emb_dim=300, n_articles=n_articles, include_dists=True,
-                        country_subset=country_train, task=task,
-                        transforms=None)
-                    for phase in ['train', 'val', 'test']}
+        final_loss_metric_dict[hp_key] = {}
+        final_loss_metric_dict[hp_key]['train country set'] = country_subsets['train']
+        final_loss_metric_dict[hp_key]['val country set'] = country_subsets['val']
+        # let individual items of performance dictionary be stored separately with hyperparameter values included
+        final_loss_metric_dict[hp_key]['hp'] = hp
+
+        datasets['train'].subset(country_subsets['train'])
+        datasets['val'].subset(country_subsets['val'])
+
         data_loaders = {phase: DataLoader(datasets[phase], batch_size=batch_sizes[phase], shuffle=True, num_workers=num_workers)
-                        for phase in ['train', 'val', 'test']}
+                        for phase in ['train', 'val']}
+
 
         if task == 'MatEd':
             MEL_IMR = True
@@ -254,7 +280,7 @@ def main():
                         print('Val loss {:.3f}     Val metric: {:.3f}'.format(val_loss, val_metric))
 
                     if i_batch % save_every == 0:
-                        torch.save(best_model, os.path.join(logdir_full, util_data.make_hp_dir(hp), model_folder, 'model.pt'))
+                        torch.save(best_model, os.path.join(hp_log_dir, model_folder, 'model.pt'))
 
                     iter_end_time = time.time()
                     iteration_times.append(iter_end_time-iter_start_time)
@@ -288,38 +314,70 @@ def main():
         if args.eval_only:
             best_model = model
 
+        countries_test_set = countries_test_sets[hp_i]
+
+        print('Evaluating hyperparameters {}'.format(hp))
         phase = 'test' if args.eval_test else 'val'
-        with torch.no_grad():
-            for i_batch_val, batch_val in enumerate(data_loaders[phase]):
-                x, y = batch_val['x'], batch_val['y']
-                x = x.to(device)
-                y = y.to(device)
 
-                pred = best_model(x)
-                eval_loss = F.mse_loss(pred, y).detach()
-                if task == 'MatEd':
-                    cont_ed_val_pred = np.dot(pred.detach().numpy(), np.array([0.0, 1.0, 2.0, 3.0]))
-                    cont_ed_val_y = np.dot(y.detach().numpy(), np.array([0.0, 1.0, 2.0, 3.0]))
-                    eval_metric = r2_score(cont_ed_val_y, cont_ed_val_pred)
-                else:
-                    eval_metric = r2_score(y.detach(), pred.detach())
-                eval_losses.append(eval_loss.item())
-                eval_metrics.append(eval_metric.item())
+        # eval_path = os.path.join(os.path.curdir, 'processed', 'ClusterLevelCombined_5yrIMR_MatEd.csv')
+        # eval_dataset = util_data.DHS_Wiki_Dataset(DHS_csv_file=eval_path,
+        #                                           emb_root_dir=article_embeddings_dir,
+        #                                           cluster_rank_csv_path=cluster_article_rank_dist_path,
+        #                                           emb_dim=300, n_articles=n_articles, include_dists=True,
+        #                                           country_subset=country_train, task=task,
+        #                                           transforms=None)
+        # eval_data_loader = DataLoader(eval_dataset, batch_size=100, shuffle=True, num_workers=num_workers)
 
-        eval_loss_mean = np.mean(np.array(eval_losses))
-        eval_metric_mean = np.mean(np.array(eval_metrics))
-        writer.add_scalar('{} set loss final'.format(phase), eval_loss_mean)
-        writer.add_scalar('{} set r-squared final'.format(phase), eval_metric_mean)
-        print('Best evaluation loss on {} set: {}'.format(phase, eval_loss_mean))
-        print('Best evaluation metric on {} set: {}'.format(phase, eval_metric_mean))
+        for test_country_set in countries_test_sets[hp_i]:
+            with torch.no_grad():
+                datasets['val'].subset(test_country_set)
+                eval_data_loader = DataLoader(datasets['val'], batch_size=250, shuffle=False, num_workers=num_workers)
 
-        writer.close()
+                for i_batch_val, batch_val in enumerate(eval_data_loader):
+                    x, y = batch_val['x'], batch_val['y']
+                    x = x.to(device)
+                    y = y.to(device)
+
+                    pred = best_model(x)
+                    eval_loss = F.mse_loss(pred, y).detach()
+                    if task == 'MatEd':
+                        cont_ed_val_pred = np.dot(pred.detach().numpy(), np.array([0.0, 1.0, 2.0, 3.0]))
+                        cont_ed_val_y = np.dot(y.detach().numpy(), np.array([0.0, 1.0, 2.0, 3.0]))
+                        eval_metric = r2_score(cont_ed_val_y, cont_ed_val_pred)
+                    else:
+                        eval_metric = r2_score(y.detach(), pred.detach())
+                    eval_losses.append(eval_loss.item())
+                    eval_metrics.append(eval_metric.item())
+
+            eval_loss_mean = np.mean(np.array(eval_losses))
+            eval_metric_mean = np.mean(np.array(eval_metrics))
+            writer.add_scalar('{} set loss final'.format(phase), eval_loss_mean)
+            writer.add_scalar('{} set R-squared final'.format(phase), eval_metric_mean)
+
+            test_country_set_key = tuple(test_country_set)
+            final_loss_metric_dict[hp_key][test_country_set_key] = {}
+            final_loss_metric_dict[hp_key][test_country_set_key]['loss'] = eval_loss_mean
+            final_loss_metric_dict[hp_key][test_country_set_key]['metric'] = eval_metric_mean
+            print('Best evaluation loss on {} trained on {}: {}'.format(
+                                ', '.join(test_country_set), country_subsets['train'], eval_loss_mean))
+            print('Best evaluation metric on {} trained on {}: {}'.format(
+                                ', '.join(test_country_set), country_subsets['train'], eval_metric_mean))
+            print()
+
+            writer.close()
+
+        with open(os.path.join(hp_log_dir, 'hp_performance_dict.pkl'), 'wb') as f:
+            pickle.dump(final_loss_metric_dict[hp_key], f)
+        with open(os.path.join(all_hyperparam_dir, 'all_hps_performance_dict.pkl'), 'wb') as f:
+            pickle.dump(final_loss_metric_dict, f)
+
 
     # save and print best set of hyperparameters if run included training
     if not args.eval_only:
+        print('Best hyperparameters overall:')
         print(best_hp_overall)
         print('Best validation score overall: R^2 {}'.format(best_val_metric_overall))
-        with open(os.path.join(logdir, 'best_hyperparam_dict.pkl'), 'wb') as f:
+        with open(os.path.join(all_hyperparam_dir, 'best_hyperparam_dict.pkl'), 'wb') as f:
             pickle.dump(best_hp_overall, f)
 
         loss_fname = 'losses.png'
@@ -356,8 +414,15 @@ def main():
         print('with hyperparameters {}'.format(best_hp_overall))
 
     hp_writer.close()
-    plt.show()
 
+    full_time = time.time() - full_start
+    hours = full_time//3600
+    minutes = (full_time - hours*3600.0)//60
+    seconds = full_time - hours*3600.0 - minutes*60.0
+    print('Total time for all training loops and evaluation: {} hr {} min {} sec'.format(hours, minutes, seconds))
+
+    if smokescreen:
+        plt.show()
 
 if __name__ == '__main__':
     main()
@@ -366,19 +431,33 @@ if __name__ == '__main__':
     # 1. DONE switch to pytorch dataloader, test data being loaded correctly,
     #           look into optimization included in out-of-the-box dataloader, may not want to load items individually
     #           generalize for multi-modal data streams
+    # 1.5 NEED data preloading, preload all DHS .csv files and article embeddings before hyperparameter loop,
+    #           then pass embeddings between data loaders
     # 2. DONE, NOT TESTED BUT SHOULD BE GOOD get full pytorch tensorboardx data logging
     # 2.5 add verbosity levels (allow for printing IO examples of the data with predictions) and full names to various metrics and models, generalize for multiple metrics
     # 3. DONE add final model evaluation at the end of training over entire evaluation/test set depending on selected options
+
+
+    #           CHECKED tensorboard outputting
+    #           country-wise evaluation:
+    #                   DONE train and test across countries and within all countries, train also on all countries
+    #                   add leave-one-country-out cross-validation likely next week, if models train quickly, might be able to do this tonight
+    #
+    #                   test on each country test set for a given country train set, save result to both a pickle file
+    #                   with just the abbreviated country names and to a tensorboard hyperparameter entry
+    #
+    #                   have separate train and val country sets
+
     # 3.5 DONE model checkpointing, model loading for both continuation of training and for evaluation only with and without test set
     #           include hyperparameter/parser args saving as well
     # 4. DONE PARTLY parser args, include model saving option that can be turned off for testing
     # 5. record/print runtimes
     # 6. NEED get running on the VM with GPU
     # 7. data preprocessing, maybe augmentation, check into overfitting on larger data sets
-    # 8. NEED add maternal education predictions
+    # 8. DONE add maternal education predictions
     # 9. NEED country-wise cross-validation
     # 10. NEED to speed up the train loop? might need to memory map the data set, look into directory structures for
-    #           fast accessing
+    #           fast accessing, preloading
 
     # TODO: EXPERIMENTS
     # 1. overfit on some smaller countries

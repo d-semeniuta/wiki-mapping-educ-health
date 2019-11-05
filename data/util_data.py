@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn import neighbors
 import time
+import copy
 import torch
 from torch.utils.data import Dataset, DataLoader
 
@@ -22,7 +23,7 @@ class DHS_Wiki_Dataset(Dataset):
             transforms (callable, optional): List of optional transforms to be applied
                 consecutively on a sample.
         """
-        self.DHS_frame = pd.read_csv(DHS_csv_file)
+        self.DHS_frame_save = pd.read_csv(DHS_csv_file)
         self.emb_root_dir = emb_root_dir
         self.emb_dim = emb_dim
         self.n_articles = n_articles
@@ -35,6 +36,8 @@ class DHS_Wiki_Dataset(Dataset):
         self.transforms = transforms
         if self.country_subset:
             self.subset(self.country_subset)
+        else:
+            self.DHS_frame = self.DHS_frame_save
 
     def __len__(self):
         return len(self.DHS_frame)
@@ -88,10 +91,27 @@ class DHS_Wiki_Dataset(Dataset):
         # country: list of str matching one of the country names in the DHS data set, specifically in the .csv file at the path
         #          locations given for the train/val/test sets
         # country_idx = self.train_set.country.isin(countries)
-        self.DHS_frame = self.DHS_frame.loc[self.DHS_frame.country.isin(countries)]
+        self.DHS_frame = self.DHS_frame_save.loc[self.DHS_frame_save.country.isin(countries)]
+
+country_abbreviations = {'Angola': 'AN', 'Armenia': 'AR', 'Bangladesh': 'BA', 'Benin': 'BE', 'Burundi': 'BU',
+                         'Cambodia': 'CA', 'Chad': 'CH', 'Egypt': 'EG', 'Ethiopia': 'ET', 'Ghana': 'GH', 'Haiti': 'HA',
+                         'India': 'IN', 'Kenya': 'KE', 'Lesotho': 'LE', 'Malawi': 'MA', 'Mozambique': 'MO',
+                         'Myanmar': 'MY', 'Nepal': 'NE', 'Philippines': 'PH', 'Rwanda': 'RW', 'Tajikistan': 'TJ',
+                         'Tanzania': 'TA', 'Timor': 'TI', 'Uganda': 'UG', 'Zimbabwe': 'ZI', None: 'All'}
+
+def abbreviate_countries(countries):
+    abbr_countries = []
+    for country in countries:
+        abbr_countries.append(country_abbreviations[country])
+    return abbr_countries
 
 def make_hp_dir(hp_dict):
-    return str(hp_dict).translate(''.maketrans({'\'': '', ' ': '_', '{': '', '}': '', ',': '', '[': '', ']': '', ':':''}))
+    hp_abbr = copy.deepcopy(hp_dict)
+    hp_abbr['cty_trn'] = abbreviate_countries(hp_dict['cty_trn'])
+
+    return str(hp_abbr).translate(
+        ''.maketrans({'.': '_', '\'': '', ' ': '_', '{': '', '}': '', ',': '', '[': '', ']': '', ':': ''}))
+
 
 class MyDataLoader:
     def __init__(self, modes, train_path, val_path, test_path, country_subset = None, args=None, preload=True, seed=0, K=10):
@@ -332,15 +352,43 @@ def make_train_val_test_split(data_path, split_path, split, country_balanced=Tru
     return train_data, val_data, test_data
 
 def make_country_cross_comparison(countries):
-
     # countries: list of str country names
-    country_set = []
-    for country in countries:
-        country_set.append(country)
-    country_set.append(countries)
-    countries_train, countries_test = country_set, country_set
-    return countries_train, countries_test
 
+    # TODO (currently returns just lists for within and out-of-country testing along with all country training and testing, but no leave-one-country-out):
+    # returns lists of train and test sets of country sets for within country, out-of-country, and leave-one-country-out training and testing
+
+    country_train_set = []
+    country_test_sets = []
+    for country in countries:
+        # train on individual country
+        country_train_set.append([country])
+
+        # for each country trained on, test on each country separately and together
+        country_test_set = []
+        for country_test in countries:
+            country_test_set.append([country_test])
+        country_test_set.append(countries)
+        country_test_sets.append(country_test_set)
+
+    # train on all countries together
+    country_train_set.append(countries)
+
+    # for training on all countries, test on each country separately and together
+    country_test_set = []
+    for country_test in countries:
+        country_test_set.append([country_test])
+    country_test_set.append(countries)
+    country_test_sets.append(country_test_set)
+
+    return country_train_set, country_test_sets
+
+# def iterdict(d):
+#     for k, v in d.items():
+#         if isinstance(v, dict):
+#             iterdict(v)
+#         else:
+#             if isinstance(v, list):
+#
 def validate_article_embeddings(path_embeddings, path_article_list, path_validated_articles_save):
     article_df = pd.read_csv(path_article_list)
     embedding_file_names = os.listdir(path_embeddings)
@@ -397,24 +445,20 @@ def compute_nearest_coordinates(queries, neighbor_coords, path='', K=25, save=Tr
     return nn_rank_dist
 
 def main():
-    # MAKE SURE TO ADD 'id' column of integer indices indexing over clutsers in ClusterLevelCombined_5yrIMR_MatEd.csv
-    # and to ClusterCoordinates.csv (and eventually to every CSV with processed data) to track coordinates uniquely
-    # across all transformations
-
     # run options:
     # run data-processing functions:
     # run = 'validate_articles'  # output CSV with articles IDs and article coordinates for each article that has a
                                 # corresponding .npy file
     # run = 'compute_nearest_articles' # compute array of indices and distances of K nearest articles to all DHS clusters
-    run = 'torch_batch' # form train/val/test split of DHS clusters
 
     # tests:
+    run = 'torch_batch' # form train/val/test split of DHS clusters
     # run = 'batch'  # test full batching
     # run = 'country_subset'  # test ability to subset data by sets of countries
     # run = 'fetch_embeddings' # test article embedding load process
     # run = 'neigh' # run tests of nearest neighbors
     # run = 'batch_sample' # run tests of batching
-    # run = 'all' # run all tests. Does not run non-testing code, such as that for forming a train/val/test split
+    # run = 'all' # run all tests. Does not run non-testing code, such as code for forming a train/val/test split
 
     if run == 'form_split':
         data_path = os.path.join(os.path.curdir, 'processed', 'ClusterLevelCombined_5yrIMR_MatEd.csv')
@@ -454,7 +498,7 @@ def main():
 
         hps = []
         n_articles_nums = [1, 3]
-        tasks = ['IMR', 'MatEd']
+        tasks = ['MatEd', 'IMR']
         countries_train_set = [None, ['Rwanda']]
         with_dists_hp = [False, True]
         emb_dims = [300]
@@ -533,12 +577,12 @@ def main():
                     y_true = np.array([DHS_item_true['imr']]).astype('float32')
                     assert y.item() == y_true
                 elif hp['task'] == 'MatEd':
-                    y_true = np.array([DHS_item_true['pct_no_education',
+                    y_true = np.array([DHS_item_true[['pct_no_education',
                                              'pct_primary_education',
                                              'pct_secondary_education',
-                                             'pct_higher_education']]).astype('float32')
+                                             'pct_higher_education']]]).astype('float32').squeeze()
                     y_true = y_true/np.sum(y_true)
-                    assert np.all(y.item() == y_true)
+                    assert np.all(y == y_true)
 
                 idx_cluster = DHS_train_frame.id.iloc[idx]
                 if include_dists:
