@@ -52,6 +52,8 @@ def main():
     # hyperparameters
     hps = {}
 
+    tasks = ['MatEd', 'IMR']
+
     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']#, 'Rwanda']
     cross_countries = False
     if cross_countries:
@@ -59,35 +61,37 @@ def main():
         countries_val_sets = countries_train_set
     else:
         countries_train_set = [['Kenya', 'Ghana', 'Zimbabwe']]
-        countries_val_sets = [['Egypt', 'Rwanda']]
-        countries_test_sets = [[['Egypt', 'Rwanda'], ['Zimbabwe']]]
+        countries_val_sets = [['Egypt', 'Rwanda']] * len(tasks)
+        countries_test_sets = [[['Egypt', 'Rwanda'], ['Zimbabwe']]] * len(tasks)
 
     # arguments
     smokescreen = args.smokescreen
-    smokescreen = True
+    # smokescreen = True
     # evaluate_model = True
     if smokescreen:
         epochs = 2
         eval_every = 2
         # evaluate_model = False
         save_every = 2
-        batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [256, 1000, 1000])}
+        batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [256, 1024, 1024])}
         # eval_batchsize=1000
         countries_train_set = [['Rwanda']]
-        countries_val_sets = [['Benin']]
-        countries_test_sets = [[['Rwanda'], ['Benin']]]
+        countries_val_sets = [['Zimbabwe']]*len(tasks)
+        countries_test_sets = [[['Rwanda'], ['Zimbabwe'], ['Benin']]]*len(tasks)
     else:
-        epochs = 10
-        eval_every = 50
-        save_every = 100
-        # batchsize = 32
+        epochs = 25
+        eval_every = 10
+        save_every = 10
+        batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [32, 1024, 1024])}
         # eval_batchsize = 1000
+        countries_train_set = [['Rwanda']]
+        countries_val_sets = [['Zimbabwe']] * len(tasks)
+        countries_test_sets = [[['Rwanda'], ['Zimbabwe'], ['Benin']]] * len(tasks)
     num_workers = 4
 
     n_articles_nums = [1]#, 3, 5]  #, 7, 10, 15]
     learning_rates = [0.003]
     regularization_strengths = [0]
-    tasks = ['MatEd'] #, 'IMR']
 
     best_hp = {}
     best_hp_overall = {}
@@ -97,13 +101,15 @@ def main():
     train_metric_histories = []
     val_loss_histories = []
     val_metric_histories = []
+    train_iter_histories = []
+    val_iter_histories = []
 
     hps = []
     # for i, model in enumerate(models):
-    for reg in regularization_strengths:
-        for lr in learning_rates:
-            for n_articles in n_articles_nums:
-                for task in tasks:
+    for task in tasks:
+        for reg in regularization_strengths:
+            for lr in learning_rates:
+                for n_articles in n_articles_nums:
                     for countries_train in countries_train_set:
                         hps.append(({'n_articles':n_articles, 'task': task, 'reg':reg, 'lr':lr, 'cty_trn': countries_train}))
 
@@ -114,19 +120,6 @@ def main():
     else:
         with open(os.path.join(all_hyperparam_dir, 'hyperparam_list.pkl'), 'wb') as f:
             pickle.dump(hps, f)
-
-    DHS_path = os.path.join(os.path.curdir, 'processed', 'ClusterLevelCombined_5yrIMR_MatEd.csv')
-    # train_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_train.csv')
-    # val_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_val.csv')
-    # test_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_test.csv')
-    # set_paths = {phase: path for phase, path in zip(['train', 'val', 'test'], [train_path, val_path, test_path])}
-
-    datasets = {phase: util_data.DHS_Wiki_Dataset(DHS_csv_file=DHS_path,
-                    emb_root_dir=article_embeddings_dir, cluster_rank_csv_path=cluster_article_rank_dist_path,
-                    emb_dim=300, n_articles=n_articles, include_dists=True,
-                    country_subset=None, task=task,
-                    transforms=None)
-                for phase in ['train', 'val']}
 
     final_loss_metric_dict = {}
 
@@ -169,12 +162,25 @@ def main():
         # let individual items of performance dictionary be stored separately with hyperparameter values included
         final_loss_metric_dict[hp_key]['hp'] = hp
 
+        DHS_path = os.path.join(os.path.curdir, 'processed', 'ClusterLevelCombined_5yrIMR_MatEd.csv')
+        # train_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_train.csv')
+        # val_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_val.csv')
+        # test_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_test.csv')
+        # set_paths = {phase: path for phase, path in zip(['train', 'val', 'test'], [train_path, val_path, test_path])}
+
+        datasets = {phase: util_data.DHS_Wiki_Dataset(DHS_csv_file=DHS_path,
+                                                      emb_root_dir=article_embeddings_dir,
+                                                      cluster_rank_csv_path=cluster_article_rank_dist_path,
+                                                      emb_dim=300, n_articles=n_articles, include_dists=True,
+                                                      country_subset=None, task=task,
+                                                      transforms=None)
+                    for phase in ['train', 'val']}
+
         datasets['train'].subset(country_subsets['train'])
         datasets['val'].subset(country_subsets['val'])
 
         data_loaders = {phase: DataLoader(datasets[phase], batch_size=batch_sizes[phase], shuffle=True, num_workers=num_workers)
                         for phase in ['train', 'val']}
-
 
         if task == 'MatEd':
             MEL_IMR = True
@@ -193,10 +199,19 @@ def main():
 
         model = model.to(device=device)  # move the model parameters to CPU/GPU
         best_model = None
+
+        # track model loss across training
         train_loss_history = []
         val_loss_history = []
+
+        # track model performance metrics across training
+        # train_metric_history is evaluated at the same time as val_metric_history
         train_metric_history = []
         val_metric_history = []
+
+        # track iterations of evaluation points across training
+        train_iter_history = []
+        val_iter_history = []
 
         best_val_loss = np.inf
         best_val_metric = -np.inf
@@ -228,17 +243,18 @@ def main():
                     loss.backward()
                     optimizer.step()
                     train_loss_history.append(loss.detach().item())
-                    writer.add_scalar('Train Loss', loss.detach().item())
+                    writer.add_scalar('Train Loss', loss.detach().item(), t_batches)
+                    train_iter_history.append(t_batches)
 
-                    if i_batch % eval_every == 0:
+                    if t_batches % eval_every == 0:
                         if task == 'MatEd':
-                            cont_ed_val_pred = np.dot(pred.detach().numpy(), np.array([0.0, 1.0, 2.0, 3.0]))
-                            cont_ed_val_y = np.dot(y.detach().numpy(), np.array([0.0, 1.0, 2.0, 3.0]))
-                            metric = r2_score(cont_ed_val_y, cont_ed_val_pred)
+                            cont_ed_pred = np.dot(pred.detach().numpy(), np.array([0.0, 1.0, 2.0, 3.0]))
+                            cont_ed_y = np.dot(y.detach().numpy(), np.array([0.0, 1.0, 2.0, 3.0]))
+                            metric = r2_score(cont_ed_y, cont_ed_pred)
                         else:
                             metric = r2_score(y.detach(), pred.detach())
                         train_metric_history.append(metric)
-                        writer.add_scalar('Train Loss', metric)
+                        writer.add_scalar('Train metric', metric, t_batches)
 
                         val_losses = []
                         val_metrics= []
@@ -264,8 +280,8 @@ def main():
 
                         val_loss_mean = np.mean(np.array(val_losses))
                         val_metric_mean = np.mean(np.array(val_metrics))
-                        writer.add_scalar('Validation Loss', val_loss_mean)
-                        writer.add_scalar('Validation R-Squared', val_metric_mean)
+                        writer.add_scalar('Validation Loss', val_loss_mean, t_batches)
+                        writer.add_scalar('Validation R-Squared', val_metric_mean, t_batches)
                         if val_metric > best_val_metric:
                             # may need to change over to periodic checkpointing without early stopping if models
                             # take more memory and keeping copies around is too expensive
@@ -275,11 +291,12 @@ def main():
                             best_val_metric = val_metric_mean
                         val_loss_history.append(val_loss_mean)
                         val_metric_history.append(val_metric_mean)
+                        val_iter_history.append(t_batches)
 
-                        print('Epoch %d, Iteration %d, loss = %.4f' % (e, i_batch, loss.item()))
+                        print('Epoch %d, Iteration %d, loss = %.4f' % (e, t_batches, loss.item()))
                         print('Val loss {:.3f}     Val metric: {:.3f}'.format(val_loss, val_metric))
 
-                    if i_batch % save_every == 0:
+                    if t_batches % save_every == 0:
                         torch.save(best_model, os.path.join(hp_log_dir, model_folder, 'model.pt'))
 
                     iter_end_time = time.time()
@@ -288,15 +305,22 @@ def main():
                           'Mean iteration runtime (s): {:.2f}'.format(iteration_times[-1],
                                                                       np.mean(np.array(iteration_times))))
 
+                    t_batches += 1
+
                 epoch_end_time = time.time()
                 epoch_times.append(epoch_end_time-epoch_start_time)
                 print('Epoch runtime (s): {:.2f}'.format(epoch_times[-1]))
                 print()
 
+        # save once more after training
+        torch.save(best_model, os.path.join(hp_log_dir, model_folder, 'model.pt'))
+
         train_loss_histories.append(train_loss_history)
         train_metric_histories.append(train_metric_history)
         val_loss_histories.append(val_loss_history)
         val_metric_histories.append(val_metric_history)
+        train_iter_histories.append(train_iter_history)
+        val_iter_histories.append(val_iter_history)
 
         # can't store hyperparameter values of strings... might want this later,
         # gives easy comparison of hyperparameters in Tensorboard
@@ -386,8 +410,8 @@ def main():
             plt.figure(t)
             plt.title('{}'.format(hp))
             plt.subplot(1, 2, 1)
-            plt.plot(np.arange(len(train_loss_histories[t])), train_loss_histories[t],
-                               np.arange(len(val_loss_histories[t])), val_loss_histories[t], 'o')
+            plt.plot(np.array(train_iter_histories[t]), train_loss_histories[t],
+                               np.array(val_iter_histories[t]), val_loss_histories[t], 'o')
             plt.legend(['Train', 'Validation'])
             plt.xlabel('Iterations')
             plt.ylabel('Loss')
@@ -395,15 +419,14 @@ def main():
             plt.savefig(os.path.join(logdir_full, util_data.make_hp_dir(hp), vis_folder, loss_fname))
 
             plt.subplot(1, 2, 2)
-            plt.plot(train_metric_histories[t], '-o', label='Training Score: R-squared')
-            plt.plot(val_metric_histories[t], '-o', label='Validation Score: R-squared')
+            plt.plot(np.array(val_iter_histories[t]), train_metric_histories[t], '-o', label='Training Score: R-squared')
+            plt.plot(np.array(val_iter_histories[t]), val_metric_histories[t], '-o', label='Validation Score: R-squared')
             plt.legend(['Train', 'Validation'])
             plt.xlabel('Iterations')
             plt.ylabel('R-squared')
 
             plt.savefig(os.path.join(logdir_full, util_data.make_hp_dir(hp), vis_folder, metric_fname))
-
-        plt.gcf().set_size_inches(15, 5)
+            plt.gcf().set_size_inches(15, 5)
 
         # Print out training results.
         for t, hp in enumerate(hps):

@@ -15,14 +15,13 @@
 # import random
 # import multiprocessing
 # from util_corpora import *
+# smokescreen = True
 
 # imports for WikiEmbRegressor
 import torch
 from torch import nn
 # import torch.nn.functional as F
 import numpy as np
-
-smokescreen = True
 
 
 class WikiEmbRegressor(nn.Module):
