@@ -2,3 +2,4 @@ raw/
 processed/
 runs/
 *.pyc
+.idea/
