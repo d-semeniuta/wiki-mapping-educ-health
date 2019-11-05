@@ -52,11 +52,11 @@ def main():
     # hyperparameters
     hps = {}
 
-    tasks = ['MatEd', 'IMR']
+    tasks = ['IMR', 'MatEd']
     n_articles_nums = [5]#1, 5, 10]  #, 7, 10, 15]
-    learning_rates = [0.003]
+    learning_rates = [0.0005]
     regularization_strengths = [0]
-    with_dists = [False, True]
+    with_dists = [True, False]
     num_hps = len(n_articles_nums)*len(learning_rates)*len(regularization_strengths)*len(with_dists)*len(tasks)
 
     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']#, 'Rwanda']
@@ -83,16 +83,16 @@ def main():
         eval_every = 2
         # evaluate_model = False
         save_every = 2
-        batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [256, 1024, 1024])}
+        batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [256, 256, 256])}
         # eval_batchsize=1000
         countries_train_set = [['Rwanda']]
         countries_val_sets = [['Zimbabwe']] * num_hps
         countries_test_sets = [[['Rwanda'], ['Zimbabwe'], ['Benin']]] * num_hps
     else:
         epochs = 50
-        eval_every = 10
-        save_every = 10
-        batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [32, 1024, 1024])}
+        eval_every = 100
+        save_every = 100
+        batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [64, 256, 256])}
         # eval_batchsize = 1000
     num_workers = 4
 
@@ -243,13 +243,17 @@ def main():
                         loss = F.mse_loss(pred, y)
                     if task == 'MatEd':
                         # KL divergence loss, works for continuous distributions (equivalent to cross-entropy)
-                        # loss = F.kl_div(pred, y)
-                        loss = F.mse_loss(pred, y)
+                        # loss = F.kl_div(torch.log(pred), y)
+                        cont_ed_pred = torch.matmul(pred, torch.Tensor([0.0, 1.0, 2.0, 3.0]))
+                        cont_ed_y = torch.matmul(y, torch.Tensor([0.0, 1.0, 2.0, 3.0]))
+                        # loss = F.mse_loss(pred, y)
+                        loss = F.mse_loss(cont_ed_pred, cont_ed_y)
 
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
                     train_loss_history.append(loss.detach().item())
+                    print('Iteration loss: {}'.format(loss.detach().item()))
                     writer.add_scalar('Train Loss', loss.detach().item(), t_batches)
                     train_iter_history.append(t_batches)
 
@@ -275,7 +279,17 @@ def main():
                                 y = y.to(device)
 
                                 pred = model(x)
-                                val_loss = F.mse_loss(pred, y).detach()
+                                # val_loss = F.mse_loss(pred, y).detach()
+                                if task == 'IMR':
+                                    val_loss = F.mse_loss(pred, y)
+                                if task == 'MatEd':
+                                    # KL divergence loss, works for continuous distributions (equivalent to cross-entropy)
+                                    # loss = F.kl_div(torch.log(pred), y)
+                                    cont_ed_pred = torch.matmul(pred, torch.Tensor([0.0, 1.0, 2.0, 3.0]))
+                                    cont_ed_y = torch.matmul(y, torch.Tensor([0.0, 1.0, 2.0, 3.0]))
+                                    # loss = F.mse_loss(pred, y)
+                                    val_loss = F.mse_loss(cont_ed_pred, cont_ed_y)
+
                                 if task == 'MatEd':
                                     cont_ed_val_pred = np.dot(pred.numpy(), np.array([0.0, 1.0, 2.0, 3.0]))
                                     cont_ed_val_y = np.dot(y.numpy(), np.array([0.0, 1.0, 2.0, 3.0]))
