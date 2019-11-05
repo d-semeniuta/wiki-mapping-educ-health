@@ -67,7 +67,7 @@ def do_country_level_analysis(dataset, task, country, pca):
             scores.append(label[0])
     plot_pca(pc1s, pc2s, scores, task, country)
 
-def main():
+def pca_on_all_articles():
     train_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_train.csv')
     article_embeddings_dir = os.path.join(os.curdir, 'raw', 'wikipedia', 'doc2vec_embeddings')
     cluster_article_rank_dist_path = os.path.join(os.curdir, 'processed', 'ClusterNearestArticles_Rank_Dist.csv')
@@ -86,7 +86,50 @@ def main():
                         transforms=None)
             do_country_level_analysis(dataset, task, country, pca)
 
-    pass
+def do_country_level_analysis_internal(dataset, task, country):
+    embs = []
+    scores = []
+    for cluster in dataset:
+        article_embs, label = cluster['x'], cluster['y']
+        # article_embs = article_embs.reshape((-1, 300)).mean(axis=0, keepdims=True)
+        embs.append(article_embs)
+        # pc1, pc2 = pca.transform(article_embs)[0]
+        # coords.add((pc1,pc2))
+        # pc1s.append(pc1)
+        # pc2s.append(pc2)
+        if task == 'MatEd':
+            ed_score = 0
+            for i in range(4):
+                ed_score += i * label[i]
+            scores.append(ed_score)
+        else:
+            scores.append(label[0])
+    emb_mat = np.matrix(embs)
+    pca = run_pca(emb_mat)
+    pcs = pca.transform(emb_mat)
+    pc1s, pc2s = emb_mat[:,0], emb_mat[:,1]
+    plot_pca(pc1s, pc2s, scores, task, country)
+
+
+def pca_on_relevant_articles():
+    train_path = os.path.join(os.path.curdir, 'processed', 'split', 'ClusterLevelCombined_5yrIMR_MatEd_train.csv')
+    article_embeddings_dir = os.path.join(os.curdir, 'raw', 'wikipedia', 'doc2vec_embeddings')
+    cluster_article_rank_dist_path = os.path.join(os.curdir, 'processed', 'ClusterNearestArticles_Rank_Dist.csv')
+
+    NUM_ARTICLES = 5
+    countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
+    for task in ['MatEd', 'IMR']:
+        for country in countries:
+            dataset = util_data.DHS_Wiki_Dataset(DHS_csv_file=train_path,
+                        emb_root_dir=article_embeddings_dir, cluster_rank_csv_path=cluster_article_rank_dist_path,
+                        emb_dim=300, n_articles=NUM_ARTICLES, include_dists=False,
+                        country_subset=[country], task=task,
+                        transforms=None)
+            do_country_level_analysis_internal(dataset, task, country)
+
+def main():
+    # pca_on_all_articles()
+    pca_on_relevant_articles()
 
 if __name__ == '__main__':
     main()
