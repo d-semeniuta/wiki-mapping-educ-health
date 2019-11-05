@@ -46,14 +46,14 @@ class WikiEmbRegressor(nn.Module):
 
         if dists:
             if self.concat:
-                self.input_shape = self.emb_size * self.n_embs
-            else:
-                self.input_shape = self.emb_size
-        else:
-            if self.concat:
                 self.input_shape = self.emb_size * self.n_embs + self.n_embs
             else:
                 self.input_shape = self.emb_size + 1
+        else:
+            if self.concat:
+                self.input_shape = self.emb_size * self.n_embs
+            else:
+                self.input_shape = self.emb_size
 
         if MEL_IMR:
             self.model = nn.Sequential(

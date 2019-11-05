@@ -53,6 +53,11 @@ def main():
     hps = {}
 
     tasks = ['MatEd', 'IMR']
+    n_articles_nums = [5]#1, 5, 10]  #, 7, 10, 15]
+    learning_rates = [0.003]
+    regularization_strengths = [0]
+    with_dists = [False, True]
+    num_hps = len(n_articles_nums)*len(learning_rates)*len(regularization_strengths)*len(with_dists)*len(tasks)
 
     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']#, 'Rwanda']
     cross_countries = False
@@ -60,9 +65,14 @@ def main():
         countries_train_set, countries_test_sets = util_data.make_country_cross_comparison(countries)
         countries_val_sets = countries_train_set
     else:
-        countries_train_set = [['Kenya', 'Ghana', 'Zimbabwe']]
-        countries_val_sets = [['Egypt', 'Rwanda']] * len(tasks)
-        countries_test_sets = [[['Egypt', 'Rwanda'], ['Zimbabwe']]] * len(tasks)
+        # countries_train_set = [['Kenya', 'Ghana', 'Zimbabwe']]
+        # countries_val_sets = [['Egypt', 'Rwanda']] * num_hps
+        # countries_test_sets = [[['Egypt', 'Rwanda'], ['Zimbabwe']]] * num_hps
+
+        countries_train_set = [['Kenya', 'Egypt']]
+        countries_val_sets = [['Ghana', 'Rwanda', 'Zimbabwe']] * num_hps
+        countries_test_sets = [[['Ghana', 'Rwanda', 'Zimbabwe'], ['Zimbabwe'], ['Ghana'], ['Rwanda'], ['Kenya'], ['Egypt']]] * num_hps
+
 
     # arguments
     smokescreen = args.smokescreen
@@ -76,22 +86,16 @@ def main():
         batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [256, 1024, 1024])}
         # eval_batchsize=1000
         countries_train_set = [['Rwanda']]
-        countries_val_sets = [['Zimbabwe']]*len(tasks)
-        countries_test_sets = [[['Rwanda'], ['Zimbabwe'], ['Benin']]]*len(tasks)
+        countries_val_sets = [['Zimbabwe']] * num_hps
+        countries_test_sets = [[['Rwanda'], ['Zimbabwe'], ['Benin']]] * num_hps
     else:
-        epochs = 25
+        epochs = 50
         eval_every = 10
         save_every = 10
         batch_sizes = {phase: size for phase, size in zip(['train', 'val', 'test'], [32, 1024, 1024])}
         # eval_batchsize = 1000
-        countries_train_set = [['Rwanda']]
-        countries_val_sets = [['Zimbabwe']] * len(tasks)
-        countries_test_sets = [[['Rwanda'], ['Zimbabwe'], ['Benin']]] * len(tasks)
     num_workers = 4
 
-    n_articles_nums = [1]#, 3, 5]  #, 7, 10, 15]
-    learning_rates = [0.003]
-    regularization_strengths = [0]
 
     best_hp = {}
     best_hp_overall = {}
@@ -110,8 +114,10 @@ def main():
         for reg in regularization_strengths:
             for lr in learning_rates:
                 for n_articles in n_articles_nums:
-                    for countries_train in countries_train_set:
-                        hps.append(({'n_articles':n_articles, 'task': task, 'reg':reg, 'lr':lr, 'cty_trn': countries_train}))
+                    for dist_opt in with_dists:
+                        for countries_train in countries_train_set:
+                            hps.append(({'n_articles':n_articles, 'task': task, 'reg':reg, 'lr':lr,
+                                         'with_dists':dist_opt, 'cty_trn': countries_train}))
 
     # either load hyperparameters from previous experiment or save current hyperparameters for new experiment
     if args.load:
@@ -147,6 +153,7 @@ def main():
         country_subsets = {}
         country_subsets['train'] = hp['cty_trn']
         country_subsets['val'] = countries_val_sets[hp_i]
+        w_dists = hp['with_dists']
 
         hp_key = []
         for k , v in hp.items():
@@ -171,7 +178,7 @@ def main():
         datasets = {phase: util_data.DHS_Wiki_Dataset(DHS_csv_file=DHS_path,
                                                       emb_root_dir=article_embeddings_dir,
                                                       cluster_rank_csv_path=cluster_article_rank_dist_path,
-                                                      emb_dim=300, n_articles=n_articles, include_dists=True,
+                                                      emb_dim=300, n_articles=n_articles, include_dists=w_dists,
                                                       country_subset=None, task=task,
                                                       transforms=None)
                     for phase in ['train', 'val']}
@@ -192,7 +199,7 @@ def main():
         if args.load:
             model = torch.load(os.path.join(hp_log_dir, model_folder, 'model.pt'))
         else:
-            model = WikiEmbRegressor(emb_size=300, n_embs=n_articles, ave_embs=False, concat=True, MEL_IMR=MEL_IMR)
+            model = WikiEmbRegressor(emb_size=300, n_embs=n_articles, ave_embs=False, concat=True, MEL_IMR=MEL_IMR, dists=w_dists)
 
         if not args.eval_only:
             optimizer = torch.optim.Adam(model.parameters(), lr = hp['lr'], weight_decay=hp['reg'])
