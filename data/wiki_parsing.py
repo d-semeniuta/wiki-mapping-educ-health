@@ -302,7 +302,7 @@ def segment(page_xml, include_interlinks=False):
 
     if text is not None:
         coordinates = extract_coordinates(text)
-        if len(coordinates) > 2:
+        if coordinates is not None and len(coordinates) > 2:
             latitude = (coordinates[0] + coordinates[1] / 60.0 + coordinates[2] / 3600.00) * SIGNS[coordinates[3].upper()]
             longitude = (coordinates[4] + coordinates[5] / 60.0 + coordinates[6] / 3600.00) * SIGNS[coordinates[7].upper()]
             coordinates = (latitude, longitude)
@@ -419,7 +419,7 @@ class _WikiSectionsCorpus(WikiCorpus):
 
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s - %(module)s - %(levelname)s - %(message)s', level=logging.INFO)
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter, description=__doc__[:-136])
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     default_workers = max(1, multiprocessing.cpu_count() - 1)
     parser.add_argument('-f', '--file', help='Path to MediaWiki database dump (read-only).', required=True)
     parser.add_argument(
@@ -456,7 +456,7 @@ if __name__ == "__main__":
         min_article_character=args.min_article_character,
         workers=args.workers,
         include_interlinks=args.include_interlinks,
-        coord_only = args.coords_only
+        coords_only = args.coords_only
     )
 
     logger.info("finished running %s", sys.argv[0])
