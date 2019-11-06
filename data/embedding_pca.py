@@ -3,6 +3,8 @@ import util_data
 import os
 import numpy as np
 import plotly.graph_objects as go
+import plotly.io as pio
+pio.orca.config.use_xvfb = True
 from sklearn.decomposition import PCA
 
 OUT_DIR = os.path.join(os.path.curdir, 'visualization', 'out', 'pca')
@@ -120,6 +122,7 @@ def pca_on_relevant_articles():
     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
     for task in ['MatEd', 'IMR']:
         for country in countries:
+            print(country, task)
             dataset = util_data.DHS_Wiki_Dataset(DHS_csv_file=train_path,
                         emb_root_dir=article_embeddings_dir, cluster_rank_csv_path=cluster_article_rank_dist_path,
                         emb_dim=300, n_articles=NUM_ARTICLES, include_dists=False,

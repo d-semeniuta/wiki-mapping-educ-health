@@ -3,3 +3,5 @@ processed/
 runs/
 zips/
 *.pyc
+.doc2vec
+.zip
