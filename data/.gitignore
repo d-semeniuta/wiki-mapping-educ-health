@@ -1,2 +1,5 @@
 raw/
 processed/
+*.zip
+*.doc2vec
+runs/
