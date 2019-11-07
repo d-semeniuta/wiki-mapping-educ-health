@@ -20,7 +20,7 @@ SIGNS = {"N":1, "S":-1, "E":1, "W":-1}
 logger = logging.getLogger(__name__)
 
 
-def segment_all_articles(file_path, min_article_character=200, workers=None, include_interlinks=False):
+def segment_all_articles(file_path, min_article_character=200, workers=None, include_interlinks=True):
     """Extract article titles and sections from a MediaWiki bz2 database dump.
     Parameters
     ----------
@@ -51,7 +51,7 @@ def segment_all_articles(file_path, min_article_character=200, workers=None, inc
 
 
 def segment_and_write_all_articles(file_path, output_file, min_article_character=200, workers=None,
-                                   include_interlinks=False, coords_only=True):
+                                   include_interlinks=True, coords_only=True):
     """Write article title and sections to `output_file` (or stdout, if output_file is None).
     The output format is one article per line, in json-line format with 4 fields::
         'title' - title of article,
@@ -82,12 +82,13 @@ def segment_and_write_all_articles(file_path, output_file, min_article_character
         article_stream = segment_all_articles(file_path, min_article_character, workers=workers,
                                               include_interlinks=include_interlinks)
         for idx, article in enumerate(article_stream):
-            article_title, article_sections, coordinates = article[0], article[1], article[2]
+            article_title, text, article_sections, coordinates = article[0], article[1], article[2], article[3]
             if include_interlinks:
-                interlinks = article[3]
+                interlinks = article[4]
 
             output_data = {
                 "title": article_title,
+                "text": text,
                 "section_titles": [],
                 "section_texts": [],
             }
@@ -269,7 +270,7 @@ def extract_coordinates(article):
 
 
 
-def segment(page_xml, include_interlinks=False):
+def segment(page_xml, include_interlinks=True):
     """Parse the content inside a page tag
     Parameters
     ----------
@@ -322,9 +323,9 @@ def segment(page_xml, include_interlinks=False):
     sections = list(zip(section_headings, section_contents))
 
     if include_interlinks:
-        return title, sections, coordinates, interlinks
+        return title, text, sections, coordinates, interlinks
     else:
-        return title, sections, coordinates
+        return title, text, sections, coordinates
 
 
 class _WikiSectionsCorpus(WikiCorpus):
@@ -334,7 +335,7 @@ class _WikiSectionsCorpus(WikiCorpus):
     """
 
     def __init__(self, fileobj, min_article_character=200, processes=None,
-                 lemmatize=utils.has_pattern(), filter_namespaces=('0',), include_interlinks=False):
+                 lemmatize=utils.has_pattern(), filter_namespaces=('0',), include_interlinks=True):
         """
         Parameters
         ----------
@@ -388,7 +389,7 @@ class _WikiSectionsCorpus(WikiCorpus):
         for group in utils.chunkize(page_xmls, chunksize=10 * self.processes, maxsize=1):
             for article in pool.imap(partial(segment, include_interlinks=self.include_interlinks),
                                      group):  # chunksize=10): partial(merge_names, b='Sons')
-                article_title, sections, coordinates = article[0], article[1], article[2]
+                article_title, text, sections, coordinates = article[0], article[1], article[2], article[3]
 
                 # article redirects are pruned here
                 if any(article_title.startswith(ignore + ':') for ignore in IGNORED_NAMESPACES):  # filter non-articles
@@ -405,10 +406,10 @@ class _WikiSectionsCorpus(WikiCorpus):
                 total_sections += len(sections)
 
                 if self.include_interlinks:
-                    interlinks = article[3]
-                    yield (article_title, sections, coordinates, interlinks)
+                    interlinks = article[4]
+                    yield (article_title, text, sections, coordinates, interlinks)
                 else:
-                    yield (article_title, sections, coordinates)
+                    yield (article_title, text, sections, coordinates)
 
         logger.info(
             "finished processing %i articles with %i sections (skipped %i redirects, %i stubs, %i ignored namespaces)",
