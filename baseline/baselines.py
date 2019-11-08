@@ -263,6 +263,7 @@ def main():
 
     if run_parameter_tuning:
         tuning_countries = ['Angola', 'Rwanda']
+        label_pairs = generate_data(data_blob, tuning_countries, tuning_countries)
         param_tuning_label_pairs = generate_data(data_blob, tuning_countries, tuning_countries)
         cont_baselines = run_baselines('health', cont_baselines, label_pairs['health'], tuning_countries)
         classification_baselines = run_baselines('ed_discrete', classification_baselines, label_pairs['ed_discrete'], tuning_countries)
