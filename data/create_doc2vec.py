@@ -5,6 +5,9 @@ import argparse
 import logging
 import multiprocessing
 import sys
+import json
+
+logger = logging.getLogger(__name__)
 
 def build_doc2vec(input_file_path, output_file_path, num_workers):
     train_list = []

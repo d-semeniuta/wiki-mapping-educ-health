@@ -104,7 +104,7 @@ def segment_and_write_all_articles(file_path, output_file, min_article_character
                 output_data["section_titles"].append(section_heading)
                 output_data["section_texts"].append(section_content)
 
-            if (idx + 1) % 100000 == 0:
+            if (idx + 1) % 10000 == 0:
                 logger.info("processed #%d articles (at %r now)", idx + 1, article_title)
             if coords_only:
                 if coordinates is not None:
@@ -304,9 +304,12 @@ def segment(page_xml, include_interlinks=True):
     if text is not None:
         coordinates = extract_coordinates(text)
         if coordinates is not None and len(coordinates) > 2:
-            latitude = (coordinates[0] + coordinates[1] / 60.0 + coordinates[2] / 3600.00) * SIGNS[coordinates[3].upper()]
-            longitude = (coordinates[4] + coordinates[5] / 60.0 + coordinates[6] / 3600.00) * SIGNS[coordinates[7].upper()]
-            coordinates = (latitude, longitude)
+            try:
+                latitude = (coordinates[0] + coordinates[1] / 60.0 + coordinates[2] / 3600.00) * SIGNS[coordinates[3].upper()]
+                longitude = (coordinates[4] + coordinates[5] / 60.0 + coordinates[6] / 3600.00) * SIGNS[coordinates[7].upper()]
+                coordinates = (latitude, longitude)
+            except:
+                print("weird problem")
         if include_interlinks:
             interlinks = find_interlinks(text)
         section_contents = re.split(top_level_heading_regex, text)
