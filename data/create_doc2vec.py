@@ -1,6 +1,6 @@
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
 from nltk.tokenize import word_tokenize
-import gensim.utils
+from gensim import utils
 import argparse
 import logging
 import multiprocessing
@@ -11,12 +11,13 @@ def build_doc2vec(input_file_path, output_file_path, num_workers):
 
     count = 0
 
-    with gensim.utils.open(input_file_path, 'rb') as file:
+    with utils.open(input_file_path, 'rb') as file:
         for line in file:
             count+=1
-            file_text = json.loads(line)['text']
-            title = json.loads(line)['title']
-            train_list.append(TaggedDocument(gensim.utils.simple_preprocess(doc), [title]))
+            article = json.loads(line)
+            text = article['text']
+            title = article['title']
+            train_list.append(TaggedDocument(utils.simple_preprocess(doc), [title]))
             if count % 10000 == 0:
                 logger.info("Finished processing %d articles.", count)
 
