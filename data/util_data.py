@@ -405,8 +405,8 @@ def main():
     # run data-processing functions:
     # run = 'validate_articles'  # output CSV with articles IDs and article coordinates for each article that has a
                                 # corresponding .npy file
-    # run = 'compute_nearest_articles' # compute array of indices and distances of K nearest articles to all DHS clusters
-    run = 'torch_batch' # form train/val/test split of DHS clusters
+    run = 'compute_nearest_articles' # compute array of indices and distances of K nearest articles to all DHS clusters
+    # run = 'torch_batch' # form train/val/test split of DHS clusters
 
     # tests:
     # run = 'batch'  # test full batching
@@ -667,4 +667,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
