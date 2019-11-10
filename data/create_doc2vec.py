@@ -28,7 +28,7 @@ def build_doc2vec(input_file_path, output_file_path, num_workers):
             article = json.loads(line)
             title = article["title"]
             text = article["text"]
-            outfile.write((text + "||" + title "\n").encode('utf-8'))
+            outfile.write((text + "||" + title + "\n").encode('utf-8'))
             # print(type(article["title"]))
             # train_list.append(TaggedDocument(utils.simple_preprocess(text), [title]))
             count += 1
