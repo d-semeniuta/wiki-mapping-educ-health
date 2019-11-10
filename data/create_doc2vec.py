@@ -17,6 +17,7 @@ def build_doc2vec(input_file_path, output_file_path, num_workers):
         for line in file:
             article = json.loads(line)
             print(article["title"])
+            print(type(article["title"]))
             # train_list.append(TaggedDocument(utils.simple_preprocess(article["text"]), [article["title"]]))
             # if count % 10000 == 0:
             #     logger.info("Finished processing %d articles.", count)
