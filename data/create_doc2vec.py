@@ -8,21 +8,31 @@ import json
 
 logger = logging.getLogger(__name__)
 
+class MySentences(object):
+    def __init__(self, dirname):
+        self.dirname = dirname
+
+    def __iter__(self):
+        for line in utils.open(dirname, 'rb'):
+            text, title = line.split("||")
+            yield utils.simple_preprocess(text), [title]
+
+# sentences = MySentences('/some/directory') # a memory-friendly iterator
+# model = gensim.models.Word2Vec(sentences)
+
 def build_doc2vec(input_file_path, output_file_path, num_workers):
-    train_list = []
-
-    count = 0
-
     with utils.open(input_file_path, 'rb') as file:
+        outfile = utils.open("./raw/temp.bz2", 'wb')
         for line in file:
             article = json.loads(line)
             title = article["title"]
             text = article["text"]
+            outfile.write((text + "||" + title "\n").encode('utf-8'))
             # print(type(article["title"]))
-            train_list.append(TaggedDocument(utils.simple_preprocess(text), [title]))
-            count += 1
-            if count % 10000 == 0:
-                logger.info("Finished processing %d articles.", count)
+            # train_list.append(TaggedDocument(utils.simple_preprocess(text), [title]))
+            # count += 1
+            # if count % 10000 == 0:
+            #     logger.info("Finished processing %d articles.", count)
 
     # with utils.open(input_file_path, 'rb') as file:
     #     for line in file:
@@ -35,13 +45,9 @@ def build_doc2vec(input_file_path, output_file_path, num_workers):
     #             logger.info("Finished processing %d articles.", count)
 
     logger.info("Finished processing all of the articles.")
-    model = Doc2Vec(dm=0, dbow_words=1, vector_size=300, window=8, min_count=15, epochs=10, workers=multiprocessing.cpu_count())
+    sentences = MySentences('./raw/temp.bz2')
 
-    model.build_vocab(train_list)
-    logger.info("Vocab built.")
-
-    model.train(train_list, total_examples=model.corpus_count, epochs=model.epochs)
-    logger.info("Model trained.")
+    model = Doc2Vec(senences, dm=0, dbow_words=1, vector_size=300, window=8, min_count=15, epochs=10, workers=multiprocessing.cpu_count())
 
     model.save(output_file_path)
 
