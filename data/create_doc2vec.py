@@ -21,6 +21,7 @@ class MySentences(object):
 # model = gensim.models.Word2Vec(sentences)
 
 def build_doc2vec(input_file_path, output_file_path, num_workers):
+    count = 0
     with utils.open(input_file_path, 'rb') as file:
         outfile = utils.open("./raw/temp.bz2", 'wb')
         for line in file:
@@ -30,9 +31,9 @@ def build_doc2vec(input_file_path, output_file_path, num_workers):
             outfile.write((text + "||" + title "\n").encode('utf-8'))
             # print(type(article["title"]))
             # train_list.append(TaggedDocument(utils.simple_preprocess(text), [title]))
-            # count += 1
-            # if count % 10000 == 0:
-            #     logger.info("Finished processing %d articles.", count)
+            count += 1
+            if count % 1000 == 0:
+                logger.info("Finished processing %d articles.", count)
 
     # with utils.open(input_file_path, 'rb') as file:
     #     for line in file:
