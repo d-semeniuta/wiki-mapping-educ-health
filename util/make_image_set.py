@@ -4,13 +4,15 @@ import matplotlib.pyplot as plt
 import gdal
 
 import os
+import subprocess
 
-from util.util_gdal import GeoProps
+
+from util_gdal import GeoProps
 
 data_dir = os.path.abspath('../data/raw')
-imr_5yr_loc = os.path.join(data_dir, 'InfantMortality_Cluster5Year.csv')
-imr_1yr_loc = os.path.join(data_dir, 'InfantMortality_ClusterYear.csv')
-mat_ed_loc = os.path.join(data_dir, 'MaternalEducation_cluster.csv')
+imr_5yr_loc = os.path.join(data_dir, 'DHS', 'InfantMortality_Cluster5Year.csv')
+imr_1yr_loc = os.path.join(data_dir, 'DHS', 'InfantMortality_ClusterYear.csv')
+mat_ed_loc = os.path.join(data_dir, 'DHS', 'MaternalEducation_cluster.csv')
 
 imr_5yr = pd.read_csv(imr_5yr_loc)
 
@@ -27,11 +29,15 @@ filepath = r"../data/raw/GUF_Continent_Africa.tif"
 
 # for reduced image data set (better for seeing all of Africa at once and getting a sense of the coordinate system)
 # produces data set with each pixel corresponding to a tenth of a degree shift in lat/long on a side
-import os
-os.system('gdal_translate -r lanczos -tr 0.1 0.1  -co COMPRESS=LZW ../data/GUF_Continent_Africa.tif '
-          '../data/raw/GUF_Continent_Africa_tenth.tif')
-
+# import os
+# os.system('gdal_translate -r lanczos -tr 0.1 0.1  -co COMPRESS=LZW ../data/GUF_Continent_Africa.tif '
+#           '../data/raw/GUF_Continent_Africa_tenth.tif')
 reduced_filepath = r"../data/raw/GUF_Continent_Africa_tenth.tif"
+gdal_cmd = 'gdal_translate -r lanczos -tr 0.1 0.1 -co COMPRESS=LZW'.split()
+gdal_cmd.extend([filepath, reduced_filepath])
+ # ../data/GUF_Continent_Africa.tif ../data/raw/GUF_Continent_Africa_tenth.tif'
+subprocess.call(gdal_cmd)
+
 
 # Open the file:
 raster = gdal.Open(filepath)
@@ -94,4 +100,4 @@ unique_DHS_clusters_Africa_intensity['std_intensity'] = std_intensities
 unique_DHS_clusters_Africa_intensity.to_csv(data_dir + r'/InfantMortality_Cluster5year_intensities.csv')
 
 test = pd.read_csv(data_dir + r'/InfantMortality_Cluster5year_intensities.csv')
-print(test)
+# print(test)
