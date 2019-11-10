@@ -1,15 +1,14 @@
-from gensim.models.doc2vec import Doc2Vec, TaggedDocumen
-from nltk.tokenize import word_tokeniz
-from gensim import util
-import argpars
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
+from gensim import utils
+import argparse
 import logging
-import multiprocessin
+import multiprocessing
 import sys
 import json
 
 logger = logging.getLogger(__name__)
 
-def build_doc2vec(input_file_path, output_file_path, dataset_file_path, num_workers):
+def build_doc2vec(input_file_path, output_file_path, num_workers):
     train_list = []
 
     count = 0
@@ -45,9 +44,9 @@ def build_vector_dataset(input_file_path, output_file_path, num_workers):
             article = json.loads(line)
             title = article["title"]
             data_line = {
-                "title" = title,
-                "coords" = article["coordinates"],
-                "embedding" = model.docvecs[title]
+                "title" : title,
+                "coords" : article["coordinates"],
+                "embedding" : model.docvecs[title]
             }
             if count % 10000 == 0:
                 logger.info("Finished processing %d articles.", count)
@@ -61,7 +60,7 @@ if __name__ == "__main__":
     default_workers = max(1, multiprocessing.cpu_count() - 1)
     parser.add_argument('-f', '--file', help='Path to the processed wiki json dump.', required=True)
     parser.add_argument('-o', '--output', help='Path of the doc2vec model that will be saved.', required=True)
-    parser.add_argument('-d'. '--dataset', help='Path of the vector dataset that will be created.', required = True)
+    parser.add_argument('-d', '--dataset', help='Path of the vector dataset that will be created.', required = True)
     parser.add_argument('-w', '--workers', help='Number of parallel workers for multicore systems.', default = max(1, multiprocessing.cpu_count() - 1))
     args = parser.parse_args()
 
