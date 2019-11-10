@@ -16,12 +16,19 @@ def build_doc2vec(input_file_path, output_file_path, num_workers):
     with utils.open(input_file_path, 'rb') as file:
         for line in file:
             article = json.loads(line)
-            count += 1
-            text = article['text']
-            title = article['title']
-            train_list.append(TaggedDocument(utils.simple_preprocess(doc), [title]))
+            train_list.append(TaggedDocument(utils.simple_preprocess(article["text"]), [article["title"]]))
             if count % 10000 == 0:
                 logger.info("Finished processing %d articles.", count)
+
+    # with utils.open(input_file_path, 'rb') as file:
+    #     for line in file:
+    #         count+=1
+    #         article = json.loads(line)
+    #         text = article['text']
+    #         title = article['title']
+    #         train_list.append(TaggedDocument(utils.simple_preprocess(doc), [title]))
+    #         if count % 10000 == 0:
+    #             logger.info("Finished processing %d articles.", count)
 
     logger.info("Finished processing all of the articles.")
     model = Doc2Vec(dm=0, dbow_words=1, vector_size=300, window=8, min_count=15, epochs=10, workers=multiprocessing.cpu_count())
