@@ -34,7 +34,7 @@ def build_doc2vec(input_file_path, output_file_path, num_workers):
 
     model.save(output_file_path)
 
-def build_vector_dataset(input_file_path, output_file_path, num_workers):
+def build_vector_dataset(input_file_path, output_file_path, dataset_file_path):
     count = 0
     with utils.open(input_file_path, 'rb') as file:
         model = Doc2Vec.load(output_file_path)
@@ -58,25 +58,26 @@ if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s - %(module)s - %(levelname)s - %(message)s', level=logging.INFO)
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     default_workers = max(1, multiprocessing.cpu_count() - 1)
-    parser.add_argument('-f', '--file', help='Path to the processed wiki json dump.', required=True)
-    parser.add_argument('-o', '--output', help='Path of the doc2vec model that will be saved.', required=True)
-    parser.add_argument('-d', '--dataset', help='Path of the vector dataset that will be created.', required = True)
-    parser.add_argument('-w', '--workers', help='Number of parallel workers for multicore systems.', default = max(1, multiprocessing.cpu_count() - 1))
-    args = parser.parse_args()
-
-    logger.info("running %s", " ".join(sys.argv))
-
-    build_doc2vec(
-        args.file,
-        args.output,
-        args.workers
-    )
-
-    build_vector_dataset(
-        args.file,
-        args.output,
-        args.dataset,
-        args.workers
-    )
-
-    logger.info("finished running %s", sys.argv[0])
+    build_doc2vec("./raw/wikipedia/coord_articles_extraced.bz2", "./raw/wikipedia/eric_doc2vec.model", default_workers)
+    build_vector_dataset("./raw/wikipedia/coord_articles_extraced.bz2", "./raw/wikipedia/eric_doc2vec.model", "./raw/wikipedia/vector_dataest.bz2")
+    # parser.add_argument('-f', '--file', help='Path to the processed wiki json dump.', required=True)
+    # parser.add_argument('-o', '--output', help='Path of the doc2vec model that will be saved.', required=True)
+    # parser.add_argument('-d', '--dataset', help='Path of the vector dataset that will be created.', required = True)
+    # parser.add_argument('-w', '--workers', help='Number of parallel workers for multicore systems.', default = max(1, multiprocessing.cpu_count() - 1))
+    # args = parser.parse_args()
+    #
+    # logger.info("running %s", " ".join(sys.argv))
+    #
+    # build_doc2vec(
+    #     args.file,
+    #     args.output,
+    #     args.workers
+    # )
+    #
+    # build_vector_dataset(
+    #     args.file,
+    #     args.output,
+    #     args.dataset
+    # )
+    #
+    # logger.info("finished running %s", sys.argv[0])
