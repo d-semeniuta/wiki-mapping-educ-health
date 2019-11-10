@@ -16,7 +16,7 @@ def build_doc2vec(input_file_path, output_file_path, num_workers):
 
     with utils.open(input_file_path, 'rb') as file:
         for line in file:
-            count+=1
+            count += 1
             article = json.loads(line)
             text = article['text']
             title = article['title']
@@ -37,20 +37,8 @@ def build_doc2vec(input_file_path, output_file_path, num_workers):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(format='%(asctime)s - %(module)s - %(levelname)s - %(message)s', level=logging.INFO)
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    default_workers = max(1, multiprocessing.cpu_count() - 1)
-    parser.add_argument('-f', '--file', help='Path to the processed wiki json dump.', required=True)
-    parser.add_argument('-o', '--output', help='Prefix of the doc2vec model that will be saved.', required=True)
-    parser.add_argument('-w', '--workers', help='Number of parallel workers for multicore systems.', default = max(1, multiprocessing.cpu_count() - 1))
-    args = parser.parse_args()
-
-    logger.info("running %s", " ".join(sys.argv))
-
     build_doc2vec(
-        args.file,
-        args.output,
-        args.workers
+        "./raw/wikipedia/wiki_extracted_run1_5.2mil.bz2",
+        "./raw/wikipedia/eric_wiki.model",
+        max(1,multiprocessing.cpu_count() - 1)
     )
-
-    logger.info("finished running %s", sys.argv[0])
