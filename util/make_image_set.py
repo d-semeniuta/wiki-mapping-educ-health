@@ -31,18 +31,12 @@ nightlights_image_set_path = os.path.join(nightlights_path, 'Africa_DHS_cluster_
 if not os.path.exists(nightlights_image_set_path):
     os.mkdir(nightlights_image_set_path)
 
-# nightlights_path = os.path.join(os.curdir, '..', '')
 GUF_filepath = os.path.join(nightlights_path, "GUF_Continent_Africa.tif") #r"../data/raw/nightlights/GUF_Continent_Africa.tif"
-
+GUF_reduced_filepath = os.path.join(nightlights_path, "GUF_Continent_Africa_tenth.tif") #  r"../data/raw/nightlights/GUF_Continent_Africa_tenth.tif"
 # for reduced image data set (better for seeing all of Africa at once and getting a sense of the coordinate system)
 # produces data set with each pixel corresponding to a tenth of a degree shift in lat/long on a side
-# import os
-# os.system('gdal_translate -r lanczos -tr 0.1 0.1  -co COMPRESS=LZW ../data/GUF_Continent_Africa.tif '
-#           '../data/raw/GUF_Continent_Africa_tenth.tif')
-reduced_filepath = r"../data/raw/GUF_Continent_Africa_tenth.tif"
 gdal_cmd = 'gdal_translate -r lanczos -tr 0.1 0.1 -co COMPRESS=LZW'.split()
-gdal_cmd.extend([filepath, reduced_filepath])
- # ../data/GUF_Continent_Africa.tif ../data/raw/GUF_Continent_Africa_tenth.tif'
+gdal_cmd.extend([GUF_filepath, GUF_reduced_filepath])
 subprocess.call(gdal_cmd)
 
 
