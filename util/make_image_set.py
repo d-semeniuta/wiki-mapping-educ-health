@@ -63,7 +63,7 @@ std_intensities = []
 cluster = unique_DHS_clusters_Africa.iloc[0]
 for idx, cluster in tqdm(unique_DHS_clusters_Africa.iterrows(), desc='Building Rasters',
                             total=len(unique_DHS_clusters_Africa)):
-    raster_img = geo_prop.get_coord_centered_img(cluster['lat'], cluster['lon'], 5, 5, raster,
+    raster_img = geo_prop.get_coord_centered_img(cluster['lat'], cluster['lon'], 6, 6, raster,
                                                  filepath=os.path.join(nightlights_image_set_path, cluster['cluster_id'] + '.png'))
 
     mean_intensities.append(float(np.mean(raster_img)))
