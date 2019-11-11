@@ -13,26 +13,13 @@ from util_gdal import GeoProps
 DHS_data_dir = os.path.abspath('../data/raw/DHS')
 data_dir = os.path.abspath('../data')
 
-# imr_5yr_loc = os.path.join(DHS_data_dir, 'InfantMortality_Cluster5Year.csv')
-# imr_1yr_loc = os.path.join(DHS_data_dir, 'InfantMortality_ClusterYear.csv')
-# mat_ed_loc = os.path.join(DHS_data_dir, 'MaternalEducation_cluster.csv')
 combined_dhs_loc = os.path.join(data_dir, 'processed', 'ClusterLevelCombined_5yrIMR_MatEd.csv')
 
 combined_dhs = pd.read_csv(combined_dhs_loc)
 
-# num_rows = len(imr_5yr)
-# num_rows_0imr = len(imr_5yr[imr_5yr.imr == 0])
-# print('Number of cluster measurements:', num_rows)
-# print('Number of cluster measurements with imr 0:', num_rows_0imr)
-# print('Percentage:', num_rows_0imr / num_rows)
-# print('Number of unique clusters:', imr_5yr['cluster_id'].nunique())
-# print('Number of countries surveyed:', imr_5yr['country'].nunique())
-
 # open GDAL data set
 nightlights_path = os.path.abspath('../data/raw/nightlights')
-# nightlights_image_set_path = os.path.join(nightlights_path, 'Africa_DHS_cluster_centered_5km_by_5km_diff_sizes')
 nightlights_image_set_path = os.path.join(nightlights_path, 'cluster_images')
-print(nightlights_image_set_path)
 if not os.path.exists(nightlights_image_set_path):
     os.mkdir(nightlights_image_set_path)
 
@@ -48,9 +35,6 @@ if not raster:
 geo_prop = GeoProps()
 geo_prop.import_geogdal(raster)
 
-# IMR unique measurements: 125261, 85006 with imr 0, 30979 in Africa, 17784 with imr 0 in Africa
-# unique clusters: 42092 total, 10507 in Africa
-# 25 countries total, 15 in Africa
 
 african_countries = ['Angola', 'Benin', 'Burundi', 'Egypt', 'Ethiopia', 'Ghana', 'Kenya',
     'Lesotho', 'Malawi', 'Mozambique', 'Rwanda', 'Chad', 'Tanzania', 'Uganda', 'Zimbabwe']
@@ -69,26 +53,16 @@ print('Number of countries surveyed:', unique_DHS_clusters_Africa['country'].nun
 
 print("Unique cluster measurements in Africa:")
 print(len(unique_DHS_clusters_Africa))
-# print(unique_DHS_clusters_Africa)
 print('Number of unique clusters:', unique_DHS_clusters_Africa['cluster_id'].nunique())
 print('Number of countries surveyed:', unique_DHS_clusters_Africa['country'].nunique())
 
 mean_intensities = []
 std_intensities = []
 
-# for testing with a subset of the total image set
-# unique_DHS_clusters_Africa = unique_DHS_clusters_Africa.head(n=5)
-
-print(unique_DHS_clusters_Africa['cluster_id'].nunique())
-# 10507 unique clusters in Africa
 
 cluster = unique_DHS_clusters_Africa.iloc[0]
-print('Out path: {}'.format(os.path.join(nightlights_image_set_path, cluster['cluster_id'] + '.png')))
-exit()
 for idx, cluster in tqdm(unique_DHS_clusters_Africa.iterrows(), desc='Building Rasters',
                             total=len(unique_DHS_clusters_Africa)):
-    # print('cluster: {}'.format(cluster))
-    # print('cluster ID: {}'.format(cluster['cluster_id']))
     raster_img = geo_prop.get_coord_centered_img(cluster['lat'], cluster['lon'], 5, 5, raster,
                                                  filepath=os.path.join(nightlights_image_set_path, cluster['cluster_id'] + '.png'))
 
@@ -101,4 +75,5 @@ unique_DHS_clusters_Africa_intensity['mean_intensity'] = mean_intensities
 unique_DHS_clusters_Africa_intensity['std_intensity'] = std_intensities
 
 processed_dir = os.path.join(data_dir, 'processed')
-unique_DHS_clusters_Africa_intensity.to_csv(os.path.join(data_dir, 'processed', 'InfantMortality_Cluster5year_intensities.csv'))
+unique_DHS_clusters_Africa_intensity.to_csv(os.path.join(data_dir, 'processed', 'combined_dhs_africa_guf_intensities.csv'),
+                                            index=False)
