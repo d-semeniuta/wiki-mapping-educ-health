@@ -194,7 +194,7 @@ def main():
         mated_model, imr_model = train_model(params, this_train, this_val, writer)
         print('Model trained in {} results:'.format(train))
         for val in country_opts:
-            if val == 'all':
+            if val == 'all' and train != 'all':
                 val_loader = data_loaders[train]['others']['val']
             else:
                 val_loader = data_loaders[val]['val']
