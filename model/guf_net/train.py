@@ -14,17 +14,45 @@ import torch.utils.data as data
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
 
-def train_model(params, train_countries, test_countries, writer):
+def split_dataset(dataset, batch_size=16, validation_split=0.2):
+    dataset_size = len(dataset)
+    indices = list(range(dataset_size))
+    split = int(np.floor(validation_split * dataset_size))
+    np.random.shuffle(indices)
+    train_indices, val_indices = indices[split:], indices[:split]
+    train_sampler = data.SubsetRandomSampler(train_indices)
+    valid_sampler = data.SubsetRandomSampler(val_indices)
+    train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+                                        sampler=train_sampler)
+    val_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+                                        sampler=valid_sampler)
+    return train_loader, val_loader
+
+
+def generate_loaders(countries):
+
+
+    data_loaders = {}
+    for country in countries:
+        data = GUFAfricaDataset(countries=country)
+        others = [c for c in countries if c is not country]
+        others_data = GUFAfricaDataset(countries=others)
+        data_loaders[country] = {}
+        data_loaders[country]['train'], data_loaders[country]['val'] = split_dataset(data)
+        data_loaders[country]['others'] = {}
+        data_loaders[country]['others']['train'], data_loaders[country]['others']['val'] = split_dataset(others_data)
+    alldata = GUFAfricaDataset(countries=countries)
+    data_loaders['all'] = {}
+    data_loaders['all']['train'], data_loaders['all']['val'] = split_dataset(alldata)
+
+    return data_loaders
+
+def train_model(params, train_loader, val_loader, writer):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     mated_model = GUFNet('mated', params).to(device)
     imr_model = GUFNet('imr', params).to(device)
 
-    seed = 10
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
 
     mated_optimizer = optim.Adam(
         mated_model.parameters(),
@@ -39,49 +67,11 @@ def train_model(params, train_countries, test_countries, writer):
     imr_model.train()
     batch_size = params['batch_size']
 
-    if train_countries == test_countries:
-        dataset = GUFAfricaDataset(countries=train_countries)
-        validation_split = 0.2
-        dataset_size = len(dataset)
-        indices = list(range(dataset_size))
-        split = int(np.floor(validation_split * dataset_size))
-        np.random.shuffle(indices)
-        train_indices, val_indices = indices[split:], indices[:split]
-
-        # Creating PT data samplers and loaders:
-        train_sampler = data.SubsetRandomSampler(train_indices)
-        valid_sampler = data.SubsetRandomSampler(val_indices)
-        train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
-                                            sampler=train_sampler)
-        test_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
-                                            sampler=valid_sampler)
-    else:
-        validation_split = 0.2
-        train_data = GUFAfricaDataset(countries=train_countries)
-        train_dataset_size = len(train_data)
-        indices = list(range(train_dataset_size))
-        split = int(np.floor(validation_split * train_dataset_size))
-        np.random.shuffle(indices)
-        train_indices = indices[split:]
-        train_sampler = data.SubsetRandomSampler(train_indices)
-        train_loader = data.DataLoader(train_data, batch_size=batch_size,
-                                        sampler=train_sampler)
-
-        test_data = GUFAfricaDataset(countries=test_countries)
-        test_dataset_size = len(test_data)
-        indices = list(range(test_dataset_size))
-        split = int(np.floor(validation_split * test_dataset_size))
-        np.random.shuffle(indices)
-        val_indices  = indices[:split]
-        valid_sampler = data.SubsetRandomSampler(val_indices)
-        test_loader = data.DataLoader(test_data, batch_size=batch_size,
-                                        sampler=train_sampler)
-
     num_epochs = params['num_epochs']
     loss_fn = nn.MSELoss()
     step = 0
     epoch = 0
-    eval_every = 5
+    eval_every = 15
     with tqdm(total=num_epochs) as progress_bar:
         while epoch != num_epochs:
             epoch += 1
@@ -104,9 +94,13 @@ def train_model(params, train_countries, test_countries, writer):
                 step += len(batch)
                 writer.add_scalar('train/MatEd/MLE', mated_loss.item(), step)
                 writer.add_scalar('train/IMR/MLE', imr_loss.item(), step)
-            # evaluate at end of 5 epochs
+                imr_corr = pearsonr(imr.numpy(), imr_out.detach().squeeze(-1).numpy())[0]
+                mated_corr = pearsonr(ed_score.numpy(), mated_out.detach().squeeze(-1).numpy())[0]
+                writer.add_scalar('train/MatEd/R2', mated_corr, step)
+                writer.add_scalar('train/IMR/R2', imr_corr, step)
+            # evaluate at end of eval_every epochs
             if epoch % eval_every == 0:
-                imr_corr, mated_corr = evaluate_model(mated_model, imr_model, test_loader)
+                imr_corr, mated_corr = evaluate_model(mated_model, imr_model, val_loader)
                 writer.add_scalar('val/IMR/r2', imr_corr, epoch)
                 writer.add_scalar('val/MatEd/r2', mated_corr, epoch)
                 imr_model.train()
@@ -118,7 +112,7 @@ def train_model(params, train_countries, test_countries, writer):
                                          R2_mated=mated_corr,
                                          R2_imr=imr_corr)
 
-    return mated_model, imr_model, train_loader, test_loader
+    return mated_model, imr_model
 
 def evaluate_model(mated_model, imr_model, test_loader):
     imr_model.eval()
@@ -190,19 +184,29 @@ def main():
     }
     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
     country_opts = countries + ['all']
+    print('Generating data loaders...')
+    data_loaders = generate_loaders(countries)
     for train in country_opts:
-        for test in country_opts:
-            if train == 'Ghana' and test != 'all':
-                continue
-            print('Training on {}, testing on {}'.format(train, test))
-            writer = SummaryWriter('runs2/train-{}_test-{}'.format(train, test))
-            this_train = [country for country in countries if country is not test] if train == 'all' else train
-            this_test = [country for country in countries if country is not train] if test == 'all' else test
-            mated_model, imr_model, train_loader, test_loader = train_model(params, this_train, this_test, writer)
-            imr_corr, mated_corr = evaluate_model(mated_model, imr_model, test_loader)
-            print('Final model results:\n\tIMR corr: {}\n\tMatEd corr: {}'.format(imr_corr, mated_corr))
-            print()
+        print('Training on {}'.format(train))
+        this_train = data_loaders[train]['train']
+        this_val = data_loaders[train]['val']
+        writer = SummaryWriter('runs3/train-{}'.format(train))
+        mated_model, imr_model = train_model(params, this_train, this_val, writer)
+        print('Model trained in {} results:'.format(train))
+        for val in country_opts:
+            if val == 'all':
+                val_loader = data_loaders[train]['others']['val']
+            else:
+                val_loader = data_loaders[val]['val']
+            imr_corr, mated_corr = evaluate_model(mated_model, imr_model, val_loader)
+            print('\tValidated in {}'.format(val))
+            print('\tIMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(imr_corr, mated_corr))
 
 
 if __name__ == '__main__':
+    seed = 10
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     main()
