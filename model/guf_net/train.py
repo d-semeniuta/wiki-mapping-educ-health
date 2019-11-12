@@ -61,13 +61,13 @@ def train_model(params, train_countries, test_countries, writer):
         train_loader = data.DataLoader(train_data, batch_size=batch_size, shuffle=True)
         test_loader = data.DataLoader(test_data, batch_size=batch_size, shuffle=True)
 
-    num_epochs = 100
+    num_epochs = params['num_epochs']
     loss_fn = nn.MSELoss()
     step = 0
     epoch = 0
-    while epoch != num_epochs:
-        epoch += 1
-        with tqdm(total=len(train_loader)) as progress_bar:
+    with tqdm(total=num_epochs) as progress_bar:
+        while epoch != num_epochs:
+            epoch += 1
             for i, batch in enumerate(train_loader):
                 images, imr, ed_score = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device)
 
@@ -85,20 +85,24 @@ def train_model(params, train_countries, test_countries, writer):
                 imr_optimizer.step()
 
                 step += len(batch)
-                progress_bar.update(batch_size)
-                progress_bar.set_postfix(epoch=epoch,
-                                         MLE_mated=mated_loss.item(),
-                                         MLE_imr=imr_loss.item())
                 writer.add_scalar('train/MatEd/MLE', mated_loss.item(), step)
                 writer.add_scalar('train/IMR/MLE', imr_loss.item(), step)
-        # evaluate at end of epoch
-        evaluate_model(mated_model, imr_model, test_loader, writer, step)
-        imr_model.train()
-        mated_model.train()
+            # evaluate at end of epoch
+            imr_corr, mated_corr = evaluate_model(mated_model, imr_model, test_loader)
+            writer.add_scalar('val/IMR/r2', imr_corr, epoch)
+            writer.add_scalar('val/MatEd/r2', mated_corr, epoch)
+            imr_model.train()
+            mated_model.train()
+            progress_bar.update(1)
+            progress_bar.set_postfix(epoch=epoch,
+                                     MLE_mated=mated_loss.item(),
+                                     MLE_imr=imr_loss.item(),
+                                     R2_mated=mated_corr,
+                                     R2_imr=imr_corr)
 
-    return mated_model, imr_model, train_loader
+    return mated_model, imr_model, train_loader, test_loader
 
-def evaluate_model(mated_model, imr_model, test_loader, writer, step):
+def evaluate_model(mated_model, imr_model, test_loader):
     imr_model.eval()
     mated_model.eval()
     imr_ins, imr_outs = [], []
@@ -108,9 +112,9 @@ def evaluate_model(mated_model, imr_model, test_loader, writer, step):
         imr_out = imr_model.forward(images)
         ed_score_out = mated_model.forward(images)
         imr_ins.append(imr)
-        imr_outs.append(imr_out.detach().squeeze())
+        imr_outs.append(imr_out.detach().squeeze(-1))
         ed_score_ins.append(ed_score)
-        ed_score_outs.append(ed_score_out.detach().squeeze())
+        ed_score_outs.append(ed_score_out.detach().squeeze(-1))
 
     imr_ins = torch.cat(imr_ins).numpy()
     imr_outs = torch.cat(imr_outs).numpy()
@@ -118,8 +122,7 @@ def evaluate_model(mated_model, imr_model, test_loader, writer, step):
     ed_score_outs = torch.cat(ed_score_outs).numpy()
     imr_corr = pearsonr(imr_ins, imr_outs)[0]
     mated_corr = pearsonr(ed_score_ins, ed_score_outs)[0]
-    writer.add_scalar('val/IMR/r2', imr_corr, step)
-    writer.add_scalar('val/MatEd/r2', mated_corr, step)
+    return imr_corr, mated_corr
 
 
 def eval_overfit(mated_model, imr_model, train_loader):
@@ -161,20 +164,27 @@ def overfit():
 
 def main():
     params = {
-        'lr': 1e-3,
+        'lr': 8e-4,
         'batch_size': 16,
         'sigmoid_out': False,
-        'conv_activation': 'relu'
+        'conv_activation': 'relu',
+        'num_epochs': 150
     }
     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
     country_opts = countries + ['all']
     for train in country_opts:
         for test in country_opts:
+            if train == 'Ghana' and test != 'all':
+                continue
             print('Training on {}, testing on {}'.format(train, test))
-            writer = SummaryWriter('runs/train-{}_test-{}'.format(train, test))
+            writer = SummaryWriter('runs2/train-{}_test-{}'.format(train, test))
             this_train = countries if train == 'all' else train
-            this_test = countries if test == 'all' else test
-            train_model(params, this_train, this_test, writer)
+            this_test = [country for country in countries if country is not train] if test == 'all' else test
+            mated_model, imr_model, train_loader, test_loader = train_model(params, this_train, this_test, writer)
+            imr_corr, mated_corr = evaluate_model(mated_model, imr_model, test_loader)
+            print('Final model results:\n\tIMR corr: {}\n\tMatEd corr: {}'.format(imr_corr, mated_corr))
+            print()
+
 
 if __name__ == '__main__':
     main()
