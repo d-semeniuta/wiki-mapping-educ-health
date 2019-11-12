@@ -31,11 +31,13 @@ class GUFNet(nn.Module):
         self.conv_net = GUFConv(256, params['conv_activation'])
         self.sigmoid_out = params['sigmoid_out']
         out_layers = [
+
             nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, 32),
             nn.ReLU(),
             nn.Linear(32, 1),
+
         ]
         if self.sigmoid_out:
             out_layers.append(nn.Sigmoid())

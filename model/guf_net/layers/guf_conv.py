@@ -16,12 +16,36 @@ class GUFConv(nn.Module):
         super(GUFConv, self).__init__()
         if conv_activation == 'relu':
             self.conv_net = nn.Sequential(
+                # regular
+                # nn.Conv2d(1, 3, 5),
+                # nn.ReLU(),
+                # nn.Conv2d(3, 5, 5),
+                # nn.ReLU(),
+                # nn.Flatten(),
+                # nn.Linear(15680, 512),
+
+                # one more layer
+                # nn.Conv2d(1, 3, 5),
+                # nn.ReLU(),
+                # nn.Conv2d(3, 5, 5),
+                # nn.ReLU(),
+                # nn.Conv2d(5, 5, 5),
+                # nn.ReLU(),
+                # nn.Flatten(),
+                # nn.Linear(13520, 512),
+
+                # two more layers
                 nn.Conv2d(1, 3, 5),
                 nn.ReLU(),
                 nn.Conv2d(3, 5, 5),
                 nn.ReLU(),
+                nn.Conv2d(5, 5, 5),
+                nn.ReLU(),
+                nn.Conv2d(5, 5, 5),
+                nn.ReLU(),
                 nn.Flatten(),
-                nn.Linear(15680, 512),
+                nn.Linear(11520, 512),
+
                 nn.ReLU(),
                 nn.Linear(512, outsize),
                 nn.ReLU()

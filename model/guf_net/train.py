@@ -1,5 +1,6 @@
 import os
 import random
+import datetime
 
 from model import GUFNet
 from data import GUFAfricaDataset
@@ -74,12 +75,12 @@ def train_model(params, train_countries, test_countries, writer):
                 mated_out = mated_model.forward(images)
                 imr_out = imr_model.forward(images)
 
-                mated_loss = loss_fn(mated_out, ed_score)
+                mated_loss = loss_fn(mated_out.squeeze(), ed_score)
                 mated_optimizer.zero_grad()
                 mated_loss.backward()
                 mated_optimizer.step()
 
-                imr_loss = loss_fn(imr_out, imr)
+                imr_loss = loss_fn(imr_out.squeeze(), imr)
                 imr_optimizer.zero_grad()
                 imr_loss.backward()
                 imr_optimizer.step()
@@ -140,9 +141,17 @@ def eval_overfit(mated_model, imr_model, train_loader):
 
 
 def overfit():
-    learning_rates = [1e-3, 5e-3, 1e-2]
+    learning_rates = [3e-4, 1e-3, 5e-3, 1e-2]
     sigmoid_outs = [False, True]
     conv_activations = ["relu", "sigmoid", "none"]
+    params = {
+        'lr': 1e-3,
+        'batch_size': 16,
+        'sigmoid_out': False,
+        'conv_activation': 'relu'
+    }
+    exp_name = 'overfit'
+    date_time = datetime.datetime.now().strftime("%b-%d-%Y__%H-%M-%S")
     for lr in learning_rates:
         for batch_size in [8]:
             for sigmoid_out in sigmoid_outs:
@@ -153,7 +162,8 @@ def overfit():
                         'sigmoid_out': sigmoid_out,
                         'conv_activation': conv_activation
                     }
-                    mated_model, imr_model, train_loader = train(params, 'Ghana', overfit=True)
+                    writer = SummaryWriter('runs/{}__{}'.format(exp_name, date_time))
+                    mated_model, imr_model, train_loader = train_model(params, 'Ghana', 'Ghana', writer)
                     print(params)
                     eval_overfit(mated_model, imr_model, train_loader)
                     print()
@@ -161,20 +171,24 @@ def overfit():
 
 def main():
     params = {
-        'lr': 1e-3,
+        'lr': 3e-4,
         'batch_size': 16,
         'sigmoid_out': False,
         'conv_activation': 'relu'
     }
+    exp_name = '2_more_conv'
+    date_time = datetime.datetime.now().strftime("%b-%d-%Y__%H-%M-%S")
     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
     country_opts = countries + ['all']
     for train in country_opts:
         for test in country_opts:
             print('Training on {}, testing on {}'.format(train, test))
-            writer = SummaryWriter('runs/train-{}_test-{}'.format(train, test))
+            writer = SummaryWriter('runs/{}__train-{}_test-{}__{}'.format(exp_name, train, test, date_time))
             this_train = countries if train == 'all' else train
             this_test = countries if test == 'all' else test
             train_model(params, this_train, this_test, writer)
 
 if __name__ == '__main__':
+    # overfit()
     main()
+
