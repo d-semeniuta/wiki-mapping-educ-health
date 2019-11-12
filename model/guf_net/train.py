@@ -56,15 +56,32 @@ def train_model(params, train_countries, test_countries, writer):
         test_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
                                             sampler=valid_sampler)
     else:
+        validation_split = 0.2
         train_data = GUFAfricaDataset(countries=train_countries)
+        train_dataset_size = len(train_data)
+        indices = list(range(train_dataset_size))
+        split = int(np.floor(validation_split * train_dataset_size))
+        np.random.shuffle(indices)
+        train_indices = indices[split:]
+        train_sampler = data.SubsetRandomSampler(train_indices)
+        train_loader = data.DataLoader(train_data, batch_size=batch_size,
+                                        sampler=train_sampler)
+
         test_data = GUFAfricaDataset(countries=test_countries)
-        train_loader = data.DataLoader(train_data, batch_size=batch_size, shuffle=True)
-        test_loader = data.DataLoader(test_data, batch_size=batch_size, shuffle=True)
+        test_dataset_size = len(test_data)
+        indices = list(range(test_dataset_size))
+        split = int(np.floor(validation_split * test_dataset_size))
+        np.random.shuffle(indices)
+        val_indices  = indices[:split]
+        valid_sampler = data.SubsetRandomSampler(val_indices)
+        test_loader = data.DataLoader(test_data, batch_size=batch_size,
+                                        sampler=train_sampler)
 
     num_epochs = params['num_epochs']
     loss_fn = nn.MSELoss()
     step = 0
     epoch = 0
+    eval_every = 5
     with tqdm(total=num_epochs) as progress_bar:
         while epoch != num_epochs:
             epoch += 1
@@ -74,12 +91,12 @@ def train_model(params, train_countries, test_countries, writer):
                 mated_out = mated_model.forward(images)
                 imr_out = imr_model.forward(images)
 
-                mated_loss = loss_fn(mated_out, ed_score)
+                mated_loss = loss_fn(mated_out.squeeze(-1), ed_score)
                 mated_optimizer.zero_grad()
                 mated_loss.backward()
                 mated_optimizer.step()
 
-                imr_loss = loss_fn(imr_out, imr)
+                imr_loss = loss_fn(imr_out.squeeze(-1), imr)
                 imr_optimizer.zero_grad()
                 imr_loss.backward()
                 imr_optimizer.step()
@@ -87,18 +104,19 @@ def train_model(params, train_countries, test_countries, writer):
                 step += len(batch)
                 writer.add_scalar('train/MatEd/MLE', mated_loss.item(), step)
                 writer.add_scalar('train/IMR/MLE', imr_loss.item(), step)
-            # evaluate at end of epoch
-            imr_corr, mated_corr = evaluate_model(mated_model, imr_model, test_loader)
-            writer.add_scalar('val/IMR/r2', imr_corr, epoch)
-            writer.add_scalar('val/MatEd/r2', mated_corr, epoch)
-            imr_model.train()
-            mated_model.train()
-            progress_bar.update(1)
-            progress_bar.set_postfix(epoch=epoch,
-                                     MLE_mated=mated_loss.item(),
-                                     MLE_imr=imr_loss.item(),
-                                     R2_mated=mated_corr,
-                                     R2_imr=imr_corr)
+            # evaluate at end of 5 epochs
+            if epoch % eval_every == 0:
+                imr_corr, mated_corr = evaluate_model(mated_model, imr_model, test_loader)
+                writer.add_scalar('val/IMR/r2', imr_corr, epoch)
+                writer.add_scalar('val/MatEd/r2', mated_corr, epoch)
+                imr_model.train()
+                mated_model.train()
+                progress_bar.update(eval_every)
+                progress_bar.set_postfix(epoch=epoch,
+                                         MLE_mated=mated_loss.item(),
+                                         MLE_imr=imr_loss.item(),
+                                         R2_mated=mated_corr,
+                                         R2_imr=imr_corr)
 
     return mated_model, imr_model, train_loader, test_loader
 
@@ -178,7 +196,7 @@ def main():
                 continue
             print('Training on {}, testing on {}'.format(train, test))
             writer = SummaryWriter('runs2/train-{}_test-{}'.format(train, test))
-            this_train = countries if train == 'all' else train
+            this_train = [country for country in countries if country is not test] if train == 'all' else train
             this_test = [country for country in countries if country is not train] if test == 'all' else test
             mated_model, imr_model, train_loader, test_loader = train_model(params, this_train, this_test, writer)
             imr_corr, mated_corr = evaluate_model(mated_model, imr_model, test_loader)
