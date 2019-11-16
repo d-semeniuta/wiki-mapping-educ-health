@@ -1,5 +1,6 @@
 import os
 import random
+import pdb
 
 from model import GUFNet
 from data import GUFAfricaDataset
@@ -8,8 +9,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, linregress
 import torch.utils.data as data
+
+import plotly.graph_objects as go
+
 
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
@@ -47,141 +51,271 @@ def generate_loaders(countries):
 
     return data_loaders
 
+def get_loss(out, task, labels, loss_fn):
+    imr, ed_score = labels
+    if task == 'imr':
+        loss = loss_fn(out, imr.unsqueeze(-1))
+    elif task == 'mated':
+        loss = loss_fn(out, ed_score.unsqueeze(-1))
+    else:
+        loss = loss_fn(out[0], imr.unsqueeze(-1)) + loss_fn(out[1], ed_score.unsqueeze(-1))
+    return loss
+
 def train_model(params, train_loader, val_loader, writer):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    mated_model = GUFNet('mated', params).to(device)
-    imr_model = GUFNet('imr', params).to(device)
-
-
-    mated_optimizer = optim.Adam(
-        mated_model.parameters(),
-        lr=params['lr'],
-    )
-    imr_optimizer = optim.Adam(
-        imr_model.parameters(),
-        lr=params['lr'],
-    )
-
-    mated_model.train()
-    imr_model.train()
+    model_dict = {
+         'imr': {}, 'mated': {}, 'both': {}
+    }
+    tasks = model_dict.keys()
+    for task in model_dict.keys():
+        model = GUFNet(task, params).to(device)
+        model_dict[task]['optimizer'] = optim.Adam(
+            model.parameters(), lr=params['lr']
+        )
+        model.train()
+        model_dict[task]['model'] = model
     batch_size = params['batch_size']
 
     num_epochs = params['num_epochs']
     loss_fn = nn.MSELoss()
     step = 0
     epoch = 0
-    eval_every = 15
+    eval_every = params['eval_every']
+    save_every = params['save_every']
+    plot_dir = './plots/{}'.format(params['run_name'].replace('/', '_'))
+    if not os.path.exists(plot_dir):
+        os.mkdir(plot_dir)
+    plot_info = {
+        'save_dir' : plot_dir,
+        'run_name' : params['run_name']
+    }
     with tqdm(total=num_epochs) as progress_bar:
         while epoch != num_epochs:
             epoch += 1
             for i, batch in enumerate(train_loader):
                 images, imr, ed_score = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device)
 
-                mated_out = mated_model.forward(images)
-                imr_out = imr_model.forward(images)
-
-                mated_loss = loss_fn(mated_out.squeeze(-1), ed_score)
-                mated_optimizer.zero_grad()
-                mated_loss.backward()
-                mated_optimizer.step()
-
-                imr_loss = loss_fn(imr_out.squeeze(-1), imr)
-                imr_optimizer.zero_grad()
-                imr_loss.backward()
-                imr_optimizer.step()
-
                 step += len(batch)
-                writer.add_scalar('train/MatEd/MLE', mated_loss.item(), step)
-                writer.add_scalar('train/IMR/MLE', imr_loss.item(), step)
-                imr_corr = pearsonr(imr.numpy(), imr_out.detach().squeeze(-1).numpy())[0]
-                mated_corr = pearsonr(ed_score.numpy(), mated_out.detach().squeeze(-1).numpy())[0]
-                writer.add_scalar('train/MatEd/R2', mated_corr, step)
-                writer.add_scalar('train/IMR/R2', imr_corr, step)
+                outs = {}
+                for task, dict in model_dict.items():
+                    out = dict['model'].forward(images)
+                    outs[task] = out
+                    loss = get_loss(out, task, (imr, ed_score), loss_fn)
+                    dict['optimizer'].zero_grad()
+                    loss.backward()
+                    dict['optimizer'].step()
+                    writer.add_scalar('train/{}/MLE'.format(task), loss.item(), step)
+            progress_bar.update(1)
+
             # evaluate at end of eval_every epochs
             if epoch % eval_every == 0:
-                imr_corr, mated_corr = evaluate_model(mated_model, imr_model, val_loader)
-                writer.add_scalar('val/IMR/r2', imr_corr, epoch)
-                writer.add_scalar('val/MatEd/r2', mated_corr, epoch)
-                imr_model.train()
-                mated_model.train()
-                progress_bar.update(eval_every)
-                progress_bar.set_postfix(epoch=epoch,
-                                         MLE_mated=mated_loss.item(),
-                                         MLE_imr=imr_loss.item(),
-                                         R2_mated=mated_corr,
-                                         R2_imr=imr_corr)
+                models = {task: dict['model'] for (task, dict) in model_dict.items()}
+                plot_info['epoch'] = epoch
+                corrs, losses = evaluate_model(models, val_loader, loss_fn, plot_preds=params['plot_preds'], plot_info=plot_info)
+                writer.add_scalar('val/IMR/R2', corrs['imr'], epoch)
+                writer.add_scalar('val/MatEd/R2', corrs['mated'], epoch)
+                writer.add_scalar('val/IMR_both/R2', corrs['both']['imr'], epoch)
+                writer.add_scalar('val/MatEd_both/R2', corrs['both']['mated'], epoch)
+                for task, loss in losses.items():
+                    writer.add_scalar('val/{}/MLE'.format(task), loss, epoch)
+                for model in models.values():
+                    model.train()
+                # progress_bar.update(eval_every)
+                progress_bar.set_postfix(
+                    IMR_R2=corrs['imr'],
+                    MatEd_R2=corrs['mated'],
+                    IMR_both_R2=corrs['both']['imr'],
+                    MatEd_both_R2=corrs['both']['mated'],
+                    MLE_imr=losses['imr'],
+                    MLE_mated=losses['mated'],
+                    MLE_both=losses['both']
+                )
+                exit()
+            if epoch % save_every == 0:
+                for task, dict in model_dict.items():
+                    model = dict['model']
+                    out_file = './checkpoints/{}-epoch-{}.checkpoint'.format(params['run_name'], epoch)
+                    torch.save(model.save_dict(), out_file)
+    return {task: dict['model'] for (task, dict) in model_dict.items()}
 
-    return mated_model, imr_model
-
-def evaluate_model(mated_model, imr_model, test_loader):
-    imr_model.eval()
-    mated_model.eval()
-    imr_ins, imr_outs = [], []
-    ed_score_ins, ed_score_outs = [], []
-    for batch in test_loader:
+def evaluate_model(models, val_loader, loss_fn, plot_preds=False, plot_info=None):
+    for model in models.values():
+        model.eval()
+    ins = {'imr': [], 'mated': []}
+    outs = {'imr': [], 'mated': [], 'both': {'imr': [], 'mated': []}}
+    for batch in val_loader:
         images, imr, ed_score = batch['image'], batch['imr'], batch['ed_score']
-        imr_out = imr_model.forward(images)
-        ed_score_out = mated_model.forward(images)
-        imr_ins.append(imr)
-        imr_outs.append(imr_out.detach().squeeze(-1))
-        ed_score_ins.append(ed_score)
-        ed_score_outs.append(ed_score_out.detach().squeeze(-1))
+        for task, model in models.items():
+            out = model.forward(images)
+            if task == 'both':
+                outs[task]['imr'].append(out[0].detach().squeeze(-1))
+                outs[task]['mated'].append(out[1].detach().squeeze(-1))
+            else:
+                outs[task].append(out.detach().squeeze(-1))
+        ins['imr'].append(imr)
+        ins['mated'].append(ed_score)
 
-    imr_ins = torch.cat(imr_ins).numpy()
-    imr_outs = torch.cat(imr_outs).numpy()
-    ed_score_ins = torch.cat(ed_score_ins).numpy()
-    ed_score_outs = torch.cat(ed_score_outs).numpy()
-    imr_corr = pearsonr(imr_ins, imr_outs)[0]
-    mated_corr = pearsonr(ed_score_ins, ed_score_outs)[0]
-    return imr_corr, mated_corr
+    ins['imr'] = torch.cat(ins['imr']).numpy()
+    ins['mated'] = torch.cat(ins['mated']).numpy()
+    corrs = {}
+    losses = {}
+    cat_outs = {}
+    for task in outs.keys():
+        if task == 'both':
+            corrs[task] = {}
+            cat_outs[task] = {}
+            losses[task] = 0
+            for inner_task in outs[task].keys():
+                out = torch.cat(outs[task][inner_task]).numpy()
+                cat_outs[task][inner_task] = out
+                corrs[task][inner_task] = pearsonr(ins[inner_task], out)[0]
+                losses[task] += loss_fn(torch.tensor(ins[inner_task]), torch.tensor(out)).item()
 
+        else:
+            out = torch.cat(outs[task]).numpy()
+            cat_outs[task] = out
+            corrs[task] = pearsonr(ins[task], out)[0]
+            losses[task] = loss_fn(torch.tensor(ins[task]), torch.tensor(out)).item()
+    if plot_preds:
+        if plot_info is None:
+            raise(ValueError('Missing plot params'))
+        plotPreds(ins, cat_outs, corrs, plot_info)
+    return corrs, losses
 
-def eval_overfit(mated_model, imr_model, train_loader):
+def plotSingle(ins, outs, corr, save_loc, title, task):
+    trace1 = go.Scatter(
+        x=ins,
+        y=outs,
+        mode='markers',
+        name='Predictions'
+    )
+    slope, intercept, r_value, p_value, std_err = linregress(ins,outs)
+    max_val = 3 if task == 'mated' else 1
+    xi = np.arange(0,max_val,0.01)
+    line = slope*xi+intercept
+
+    trace2 = go.Scatter(
+        x=xi,
+        y=line,
+        mode='lines',
+        name='Fit'
+    )
+
+    annotation = go.layout.Annotation(
+        x=0.05,
+        y=max_val-0.05,
+        text='$R^2 = {:.3f}$'.format(corr),
+        showarrow=False,
+    )
+    layout = go.Layout(
+        title = title,
+        xaxis_title = 'Ground Truth',
+        yaxis_title = 'Predictions',
+        annotations=[annotation]
+    )
+
+    fig=go.Figure(data=[trace1,trace2], layout=layout)
+
+    fig.write_image(save_loc)
+
+def plotPreds(ins, outs, corrs, plot_info):
+    tasks = outs.keys()
+    for task in tasks:
+        if task == 'both':
+            for inner_task in ['imr', 'mated']:
+                this_in = ins[inner_task]
+                this_out = outs[task][inner_task]
+                corr = corrs[task][inner_task]
+                save_loc = '{}/{}-{}_epoch{}.png'.format(plot_info['save_dir'], task, inner_task, plot_info['epoch'])
+                title = '{} {} {} epoch {}'.format(plot_info['run_name'], task, inner_task, plot_info['epoch'])
+                plotSingle(this_in, this_out, corr, save_loc, title, inner_task)
+        else:
+            this_in = ins[task]
+            this_out = outs[task]
+            corr = corrs[task]
+            save_loc = '{}/{}_epoch{}.png'.format(plot_info['save_dir'], task, plot_info['epoch'])
+            title = '{} {} epoch {}'.format(plot_info['run_name'], task, plot_info['epoch'])
+            plotSingle(this_in, this_out, corr, save_loc, title, task)
+
+def eval_overfit(mated_model, imr_model, both_model, train_loader):
     imr_model.eval()
     mated_model.eval()
+    both_model.eval()
     for batch in train_loader:
         images, imr, ed_score = batch['image'], batch['imr'], batch['ed_score']
         imr_out = imr_model.forward(images)
         mated_out = mated_model.forward(images)
-        for i, o in zip(imr, imr_out):
-            print('IMR\tTrue: {}\tPred: {}'.format(i, o.item()))
+        imr_both_out, mated_both_out = both_model.forward(images)
+        for i, o, b in zip(imr, imr_out, imr_both_out):
+            print('IMR\tTrue: {}\tPred: {}\tBoth Pred: {}'.format(i, o.item(), b.item()))
         imr_corr = pearsonr(imr_out.detach().squeeze().numpy(), imr.numpy())
-        print('IMR Corr: {}'.format(imr_corr))
-        for i, o in zip(ed_score, mated_out):
-            print('Mated\tTrue: {}\tPred: {}'.format(i, o.item()))
+        imr_both_corr = pearsonr(imr_both_out.detach().squeeze().numpy(), imr.numpy())
+        print('IMR Corr Single: {}\tBoth: {}'.format(imr_corr, imr_both_corr))
+        for i, o, b in zip(ed_score, mated_out, mated_both_out):
+            print('Mated\tTrue: {}\tPred: {}Both Pred: {}'.format(i, o.item(), b.item()))
         mated_corr = pearsonr(mated_out.detach().squeeze().numpy(), ed_score.numpy())
-        print('Mat Ed Corr: {}'.format(mated_corr))
+        mated_both_corr = pearsonr(mated_both_out.detach().squeeze().numpy(), ed_score.numpy())
+        print('MatEd Corr Single: {}\tBoth: {}'.format(mated_corr, mated_both_corr))
 
+def subsample_data_loader(subsample_size=8):
+    dataset = GUFAfricaDataset(countries='Ghana')
+    train_sampler = data.SubsetRandomSampler(list(range(subsample_size)))
+    train_loader = torch.utils.data.DataLoader(dataset, batch_size=subsample_size,
+                                        sampler=train_sampler)
+    return train_loader
 
 def overfit():
     learning_rates = [1e-3, 5e-3, 1e-2]
     sigmoid_outs = [False, True]
     conv_activations = ["relu", "sigmoid", "none"]
+    data_loader = subsample_data_loader()
+    i = 0
     for lr in learning_rates:
         for batch_size in [8]:
             for sigmoid_out in sigmoid_outs:
                 for conv_activation in conv_activations:
+                    writer = SummaryWriter('overfitting/param_set_{}'.format(i))
                     params = {
                         'lr': lr,
                         'batch_size': batch_size,
                         'sigmoid_out': sigmoid_out,
-                        'conv_activation': conv_activation
+                        'conv_activation': conv_activation,
+                        'num_epochs': 200
                     }
-                    mated_model, imr_model, train_loader = train(params, 'Ghana', overfit=True)
+                    mated_model, imr_model, both_model = train_model(params, data_loader,
+                                                                        data_loader, writer)
                     print(params)
-                    eval_overfit(mated_model, imr_model, train_loader)
+                    eval_overfit(mated_model, imr_model, both_model, data_loader)
                     print()
+                    i += 1
+                    return
 
+def just_Ghana(params):
+    countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
+    country_opts = countries + ['all']
+    print('Generating data loaders...')
+    data_loaders = generate_loaders(countries)
+    for train in ['Ghana']:
+        print('Training on {}'.format(train))
+        this_train = data_loaders[train]['train']
+        this_val = data_loaders[train]['val']
+        params['run_name'] = 'run0/train-{}'.format(train)
+        writer = SummaryWriter('tb/{}'.format(params['run_name']))
+        models = train_model(params, this_train, this_val, writer)
 
-def main():
-    params = {
-        'lr': 8e-4,
-        'batch_size': 16,
-        'sigmoid_out': False,
-        'conv_activation': 'relu',
-        'num_epochs': 150
-    }
+        print('Model trained in {} results:'.format(train))
+        for val in country_opts:
+            if val == 'all' and train != 'all':
+                val_loader = data_loaders[train]['others']['val']
+            else:
+                val_loader = data_loaders[val]['val']
+            corrs = evaluate_model(models, val_loader)
+            print('\tValidated in {}'.format(val))
+            print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
+            print('\tBoth Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['both']['imr'], corrs['both']['mated']))
+
+def big_loop(params):
     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
     country_opts = countries + ['all']
     print('Generating data loaders...')
@@ -192,6 +326,7 @@ def main():
         this_val = data_loaders[train]['val']
         writer = SummaryWriter('runs3/train-{}'.format(train))
         mated_model, imr_model = train_model(params, this_train, this_val, writer)
+
         print('Model trained in {} results:'.format(train))
         for val in country_opts:
             if val == 'all' and train != 'all':
@@ -201,6 +336,21 @@ def main():
             imr_corr, mated_corr = evaluate_model(mated_model, imr_model, val_loader)
             print('\tValidated in {}'.format(val))
             print('\tIMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(imr_corr, mated_corr))
+
+def main():
+    params = {
+        'lr': 8e-4,
+        'batch_size': 16,
+        'sigmoid_out': False,
+        'conv_activation': 'relu',
+        'num_epochs': 150,
+        'eval_every': 15,
+        'save_every': 50,
+        'plot_preds': True
+    }
+    # big_loop(params)
+    # overfit()
+    just_Ghana(params)
 
 
 if __name__ == '__main__':

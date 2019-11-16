@@ -37,25 +37,61 @@ class GUFNet(nn.Module):
             nn.ReLU(),
             nn.Linear(32, 1),
         ]
-        if self.sigmoid_out:
-            out_layers.append(nn.Sigmoid())
-        self.out_layers = nn.Sequential(*out_layers)
+        if self.task == 'both':
+            self.imr_out = nn.Sequential(
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, 32),
+                nn.ReLU(),
+                nn.Linear(32, 1)
+            )
+            self.mated_out = nn.Sequential(
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, 32),
+                nn.ReLU(),
+                nn.Linear(32, 1)
+            )
+        else:
+            self.out_layers = nn.Sequential(*out_layers)
 
     def forward(self, x):
         x = self.conv_net(x)
+
         if self.sigmoid_out and self.task == 'mated':
-            return 4 * self.out_layers(x)
+            return 3 * F.sigmoid(self.out_layers(x))
+        elif self.sigmoid_out and self.task == 'both':
+            return (
+                F.sigmoid(self.imr_out(x)),
+                3 * F.sigmoid(self.mated_out(x))
+            )
+        elif self.task == 'both':
+            return (
+                self.imr_out(x),
+                self.mated_out(x)
+            )
         else:
-            return self.out_layers(x)
+            return F.sigmoid(self.out_layers(x)) if self.sigmoid_out else self.out_layers(x)
 
 def main():
     gufdata = GUFAfricaDataset()
-    gufnet = GUFNet('imr')
+    params = {
+        'lr': 8e-4,
+        'batch_size': 16,
+        'sigmoid_out': False,
+        'conv_activation': 'relu',
+        'num_epochs': 150
+    }
+    gufnet = GUFNet('imr', params)
 
     sample = gufdata[0]['image'].unsqueeze(0)
     print(sample, sample.shape)
     out = gufnet(sample)
     print(out, out.shape)
+
+    bothnet = GUFNet('both', params)
+    imr_out, mated_out = bothnet(sample)
+    print(imr_out, mated_out)
 
 if __name__ == '__main__':
     main()
