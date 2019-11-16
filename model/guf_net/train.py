@@ -123,10 +123,10 @@ def train_model(params, train_loader, val_loader, writer):
                     model.train()
                 # progress_bar.update(eval_every)
                 progress_bar.set_postfix(
-                    IMR_R2=corrs['imr'],
-                    MatEd_R2=corrs['mated'],
-                    IMR_both_R2=corrs['both']['imr'],
-                    MatEd_both_R2=corrs['both']['mated'],
+                    R2_IMR=corrs['imr'],
+                    R2_MatEd=corrs['mated'],
+                    R2_IMR_both=corrs['both']['imr'],
+                    R2_MatEd_both=corrs['both']['mated'],
                     MLE_imr=losses['imr'],
                     MLE_mated=losses['mated'],
                     MLE_both=losses['both']
@@ -135,7 +135,7 @@ def train_model(params, train_loader, val_loader, writer):
                 for task, dict in model_dict.items():
                     model = dict['model']
                     out_file = './checkpoints/{}-epoch-{}.checkpoint'.format(params['run_name'], epoch)
-                    torch.save(model.save_dict(), out_file)
+                    torch.save(model.state_dict(), out_file)
     return {task: dict['model'] for (task, dict) in model_dict.items()}
 
 def evaluate_model(models, val_loader, loss_fn, plot_preds=False, plot_info=None):
@@ -309,7 +309,11 @@ def just_Ghana(params):
                 val_loader = data_loaders[train]['others']['val']
             else:
                 val_loader = data_loaders[val]['val']
-            corrs = evaluate_model(models, val_loader)
+            plot_info = {
+                'save_dir' : './plots/{}/val-{}'.format(params['run_name'].replace('/', '_'), val),
+                'run_name' : '{} val-{}'.format(params['run_name'], val)
+            }
+            corrs = evaluate_model(models, val_loader, nn.MSELoss(), plot_preds=True, plot_info=None):
             print('\tValidated in {}'.format(val))
             print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
             print('\tBoth Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['both']['imr'], corrs['both']['mated']))
