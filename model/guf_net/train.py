@@ -131,7 +131,6 @@ def train_model(params, train_loader, val_loader, writer):
                     MLE_mated=losses['mated'],
                     MLE_both=losses['both']
                 )
-                exit()
             if epoch % save_every == 0:
                 for task, dict in model_dict.items():
                     model = dict['model']
