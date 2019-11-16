@@ -313,7 +313,7 @@ def just_Ghana(params):
                 'save_dir' : './plots/{}/val-{}'.format(params['run_name'].replace('/', '_'), val),
                 'run_name' : '{} val-{}'.format(params['run_name'], val)
             }
-            corrs = evaluate_model(models, val_loader, nn.MSELoss(), plot_preds=True, plot_info=None):
+            corrs = evaluate_model(models, val_loader, nn.MSELoss(), plot_preds=True, plot_info=plot_info)
             print('\tValidated in {}'.format(val))
             print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
             print('\tBoth Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['both']['imr'], corrs['both']['mated']))
