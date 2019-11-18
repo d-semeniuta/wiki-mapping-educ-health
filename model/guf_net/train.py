@@ -90,6 +90,9 @@ def train_model(params, train_loader, val_loader, writer):
         'save_dir' : plot_dir,
         'run_name' : params['run_name']
     }
+    checkpoint_dir = os.path.join('./checkpoints', params['run_name'].split('/')[0])
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
     with tqdm(total=num_epochs) as progress_bar:
         while epoch != num_epochs:
             epoch += 1
@@ -112,7 +115,7 @@ def train_model(params, train_loader, val_loader, writer):
             if epoch % eval_every == 0:
                 models = {task: dict['model'] for (task, dict) in model_dict.items()}
                 plot_info['epoch'] = epoch
-                corrs, losses = evaluate_model(models, val_loader, loss_fn, plot_preds=params['plot_preds'], plot_info=plot_info)
+                corrs, losses = evaluate_model(models, val_loader, loss_fn)
                 writer.add_scalar('val/IMR/R2', corrs['imr'], epoch)
                 writer.add_scalar('val/MatEd/R2', corrs['mated'], epoch)
                 writer.add_scalar('val/IMR_both/R2', corrs['both']['imr'], epoch)
@@ -134,7 +137,7 @@ def train_model(params, train_loader, val_loader, writer):
             if epoch % save_every == 0:
                 for task, dict in model_dict.items():
                     model = dict['model']
-                    out_file = './checkpoints/{}-epoch-{}.checkpoint'.format(params['run_name'], epoch)
+                    out_file = './checkpoints/{}-{}.last.pth'.format(params['run_name'], task)
                     torch.save(model.state_dict(), out_file)
     return {task: dict['model'] for (task, dict) in model_dict.items()}
 
@@ -170,7 +173,6 @@ def evaluate_model(models, val_loader, loss_fn, plot_preds=False, plot_info=None
                 cat_outs[task][inner_task] = out
                 corrs[task][inner_task] = pearsonr(ins[inner_task], out)[0]
                 losses[task] += loss_fn(torch.tensor(ins[inner_task]), torch.tensor(out)).item()
-
         else:
             out = torch.cat(outs[task]).numpy()
             cat_outs[task] = out
@@ -226,15 +228,15 @@ def plotPreds(ins, outs, corrs, plot_info):
                 this_in = ins[inner_task]
                 this_out = outs[task][inner_task]
                 corr = corrs[task][inner_task]
-                save_loc = '{}/{}-{}_epoch{}.png'.format(plot_info['save_dir'], task, inner_task, plot_info['epoch'])
-                title = '{} {} {} epoch {}'.format(plot_info['run_name'], task, inner_task, plot_info['epoch'])
+                save_loc = '{}/{}-{}.png'.format(plot_info['save_dir'], task, inner_task)
+                title = '{} {} {}'.format(plot_info['run_name'], task, inner_task)
                 plotSingle(this_in, this_out, corr, save_loc, title, inner_task)
         else:
             this_in = ins[task]
             this_out = outs[task]
             corr = corrs[task]
-            save_loc = '{}/{}_epoch{}.png'.format(plot_info['save_dir'], task, plot_info['epoch'])
-            title = '{} {} epoch {}'.format(plot_info['run_name'], task, plot_info['epoch'])
+            save_loc = '{}/{}.png'.format(plot_info['save_dir'], task)
+            title = '{} {}'.format(plot_info['run_name'], task)
             plotSingle(this_in, this_out, corr, save_loc, title, task)
 
 def eval_overfit(mated_model, imr_model, both_model, train_loader):
@@ -301,6 +303,41 @@ def just_Ghana(params):
         this_val = data_loaders[train]['val']
         params['run_name'] = 'run0/train-{}'.format(train)
         writer = SummaryWriter('tb/{}'.format(params['run_name']))
+        # models = train_model(params, this_train, this_val, writer)
+        models = {}
+        models['both'] = GUFNet('both', params)
+        models['both'].load_state_dict(torch.load('checkpoints/run0/train-Ghana-both-epoch-150.pt'))
+
+        print('Model trained in {} results:'.format(train))
+        for val in country_opts:
+            if val == 'all' and train != 'all':
+                val_loader = data_loaders[train]['others']['val']
+            else:
+                val_loader = data_loaders[val]['val']
+            plot_info = {
+                'save_dir' : './plots/{}/val-{}'.format(params['run_name'].replace('/', '_'), val),
+                'run_name' : '{} val-{}'.format(params['run_name'], val)
+            }
+            if not os.path.exists(plot_info['save_dir']):
+                os.makedirs(plot_info['save_dir'])
+            corrs, losses = evaluate_model(models, val_loader, nn.MSELoss(), plot_preds=True, plot_info=plot_info)
+            print('\tValidated in {}'.format(val))
+            # print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
+            print('\tBoth Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['both']['imr'], corrs['both']['mated']))
+
+def big_loop(params):
+    countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
+    country_opts = countries + ['all']
+    print('Generating data loaders...')
+    data_loaders = generate_loaders(countries)
+    for train in country_opts:
+        if train == 'Ghana':
+            continue # already have these results
+        print('Training on {}'.format(train))
+        this_train = data_loaders[train]['train']
+        this_val = data_loaders[train]['val']
+        params['run_name'] = 'run0/train-{}'.format(train)
+        writer = SummaryWriter('tb/{}'.format(params['run_name']))
         models = train_model(params, this_train, this_val, writer)
 
         print('Model trained in {} results:'.format(train))
@@ -313,32 +350,34 @@ def just_Ghana(params):
                 'save_dir' : './plots/{}/val-{}'.format(params['run_name'].replace('/', '_'), val),
                 'run_name' : '{} val-{}'.format(params['run_name'], val)
             }
-            corrs = evaluate_model(models, val_loader, nn.MSELoss(), plot_preds=True, plot_info=plot_info)
+            if not os.path.exists(plot_info['save_dir']):
+                os.makedirs(plot_info['save_dir'])
+            corrs, losses = evaluate_model(models, val_loader, nn.MSELoss(), plot_preds=True, plot_info=plot_info)
             print('\tValidated in {}'.format(val))
             print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
             print('\tBoth Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['both']['imr'], corrs['both']['mated']))
 
-def big_loop(params):
-    countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
-    country_opts = countries + ['all']
-    print('Generating data loaders...')
-    data_loaders = generate_loaders(countries)
-    for train in country_opts:
-        print('Training on {}'.format(train))
-        this_train = data_loaders[train]['train']
-        this_val = data_loaders[train]['val']
-        writer = SummaryWriter('runs3/train-{}'.format(train))
-        mated_model, imr_model = train_model(params, this_train, this_val, writer)
-
-        print('Model trained in {} results:'.format(train))
-        for val in country_opts:
-            if val == 'all' and train != 'all':
-                val_loader = data_loaders[train]['others']['val']
-            else:
-                val_loader = data_loaders[val]['val']
-            imr_corr, mated_corr = evaluate_model(mated_model, imr_model, val_loader)
-            print('\tValidated in {}'.format(val))
-            print('\tIMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(imr_corr, mated_corr))
+# def big_loop_old(params):
+#     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
+#     country_opts = countries + ['all']
+#     print('Generating data loaders...')
+#     data_loaders = generate_loaders(countries)
+#     for train in country_opts:
+#         print('Training on {}'.format(train))
+#         this_train = data_loaders[train]['train']
+#         this_val = data_loaders[train]['val']
+#         writer = SummaryWriter('runs3/train-{}'.format(train))
+#         mated_model, imr_model = train_model(params, this_train, this_val, writer)
+#
+#         print('Model trained in {} results:'.format(train))
+#         for val in country_opts:
+#             if val == 'all' and train != 'all':
+#                 val_loader = data_loaders[train]['others']['val']
+#             else:
+#                 val_loader = data_loaders[val]['val']
+#             imr_corr, mated_corr = evaluate_model(mated_model, imr_model, val_loader)
+#             print('\tValidated in {}'.format(val))
+#             print('\tIMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(imr_corr, mated_corr))
 
 def main():
     params = {
@@ -346,14 +385,14 @@ def main():
         'batch_size': 16,
         'sigmoid_out': False,
         'conv_activation': 'relu',
-        'num_epochs': 150,
+        'num_epochs': 120,
         'eval_every': 15,
-        'save_every': 50,
+        'save_every': 30,
         'plot_preds': True
     }
-    # big_loop(params)
+    big_loop(params)
     # overfit()
-    just_Ghana(params)
+    # just_Ghana(params)
 
 
 if __name__ == '__main__':
