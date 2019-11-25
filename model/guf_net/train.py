@@ -331,8 +331,6 @@ def big_loop(params):
     print('Generating data loaders...')
     data_loaders = generate_loaders(countries)
     for train in country_opts:
-        if train == 'Ghana':
-            continue # already have these results
         print('Training on {}'.format(train))
         this_train = data_loaders[train]['train']
         this_val = data_loaders[train]['val']
