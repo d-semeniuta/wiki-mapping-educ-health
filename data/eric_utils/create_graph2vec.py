@@ -77,7 +77,7 @@ def create_graph(parsed_path, output_path, number, file_path, hops = 1):
         graph_prefix = "test"
     elif "val" in prefix.lower():
         graph_prefix = "val"
-    else
+    else:
         ValueError("Dataset entered isn't one of train, test, or val.")
     title_collector = []
     for i in range(len(df["Lat"])):
