@@ -4,12 +4,12 @@
   "b1" : 0.9,
   "b2" : 0.999,
   "batch_size" : 16,
+  "val_split"
   "num_epochs" : 150,
   "sigmoid_out" : False,
   "eval_every" : 15,
-  "save_every" : 30,
   "plot_preds" : True,
   "visual_emb_size" : 256,
   "visual_conv_activation" : "relu",
-
+  "countries" : ["Ghana", "Zimbabwe", "Kenya", "Egypt"]
 }
