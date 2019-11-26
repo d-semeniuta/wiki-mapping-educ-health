@@ -82,7 +82,10 @@ def train(models, optimizers, loss_fns, train_loader, val_loader, writer, params
             )
             # save models
             for task, model in models.items():
-                last_out = os.path.join(params['model_dir'], '{}.last.pth'.format(task))
+                out_dir = os.path.join(params['model_dir'], params['country'])
+                if not os.path.exists(out_dir):
+                    os.mkdir(out_dir)
+                last_out = os.path.join(out_dir, '{}.last.pth'.format(task))
                 dict_to_save = {
                     'epoch': epoch,
                     'state_dict': model.state_dict(),
@@ -91,9 +94,9 @@ def train(models, optimizers, loss_fns, train_loader, val_loader, writer, params
                 torch.save(dict_to_save, last_out)
                 if corrs[task] > best_corrs[task]:
                     best_corrs[task] = corrs[task]
-                    best_out = os.path.join(params['model_dir'], '{}.best.pth'.format(task))
+                    best_out = os.path.join(out_dir, '{}.best.pth'.format(task))
                     torch.save(dict_to_save, best_out)
-
+    return models
 
 def evaluate(models, val_loader, loss_fns, params):
     for model in models.values():
@@ -123,7 +126,8 @@ def evaluate(models, val_loader, loss_fns, params):
     return (corrs, losses), (ins, outs)
 
 
-
+def main():
+    args, params = parseArgs()
 
 if __name__ == '__main__':
     main()

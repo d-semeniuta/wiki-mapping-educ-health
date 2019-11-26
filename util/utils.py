@@ -168,32 +168,33 @@ def produce_geo_scatter_plot(df, title, img_name, countries=None, color_col=None
         )
     fig.write_image(os.path.join(out_dir, '{}.{}'.format(img_name, img_format)))
 
-def testComputeDistMatrix():
-    A = np.random.uniform(-360,360,(100,2))
-    B = np.random.uniform(-360,360,(5000,2))
-    C = compute_hav_dist_matrix(A,B)
-    assert(C.shape == (100,5000))
-    C_T = compute_hav_dist_matrix(B,A)
-    assert(np.array_equal(C, C_T.T))
-    assert(np.all(C >= 0))
-    assert(np.all(C <= np.pi))
+def split_dataset(dataset, batch_size=16, validation_split=0.2):
+    dataset_size = len(dataset)
+    indices = list(range(dataset_size))
+    split = int(np.floor(validation_split * dataset_size))
+    np.random.shuffle(indices)
+    train_indices, val_indices = indices[split:], indices[:split]
+    train_sampler = data.SubsetRandomSampler(train_indices)
+    valid_sampler = data.SubsetRandomSampler(val_indices)
+    train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+                                        sampler=train_sampler)
+    val_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+                                        sampler=valid_sampler)
+    return train_loader, val_loader
 
-    import time
-    def time_me(A, B):
-        times = []
-        for _ in range(100):
-            start = time.time()
-            compute_hav_dist_matrix(A,B)
-            end = time.time()
-            times.append(end-start)
-        print('Average time taken: {}'.format(np.mean(times)))
+def generate_loaders(countries, data_class, params):
 
-    # testing the timing of swapping application order
-    time_me(A,B)
-    time_me(B,A)
+    data_loaders = {}
+    for country in countries:
+        data = data_class(countries=country)
+        others = [c for c in countries if c is not country]
+        others_data = data_class(countries=others)
+        data_loaders[country] = {}
+        data_loaders[country]['train'], data_loaders[country]['val'] = split_dataset(dataset, params['batch_size'], params['val_split'])
+        data_loaders[country]['others'] = {}
+        data_loaders[country]['others']['train'], data_loaders[country]['others']['val'] = split_dataset_with_params(others_data)
+    alldata = data_class(countries=countries)
+    data_loaders['all'] = {}
+    data_loaders['all']['train'], data_loaders['all']['val'] = split_dataset(dataset, params['batch_size'], params['val_split'])
 
-def main():
-    testComputeDistMatrix()
-
-if __name__ == '__main__':
-    main()
+    return data_loaders
