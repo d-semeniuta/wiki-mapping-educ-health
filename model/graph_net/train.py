@@ -65,7 +65,7 @@ def train_model(params, train_loader, val_loader, writer):
     }
     tasks = model_dict.keys()
     for task in model_dict.keys():
-        model = GUFNet(task, params).to(device)
+        model = Graph2VecNet(task, params).to(device)
         model_dict[task]['optimizer'] = optim.Adam(
             model.parameters(), lr=params['lr']
         )
