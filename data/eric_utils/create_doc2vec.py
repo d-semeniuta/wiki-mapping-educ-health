@@ -20,7 +20,7 @@ def build_doc2vec(input_file_path, output_file_path, num_workers):
     model.build_vocab(doc_iterator)
     for epoch in range(10):
         logger.info("Epoch "+ str(epoch + 1))
-        model.train(doc_iterator)
+        model.train(doc_iterator, total_examples=model.corpus_count)
     #
     model.save(output_file_path)
 

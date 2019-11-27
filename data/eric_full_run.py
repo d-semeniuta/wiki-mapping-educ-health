@@ -4,6 +4,9 @@ from eric_utils.create_doc2vec import build_doc2vec
 from eric_utils.create_dataset import create_doc2vec_datasets
 from eric_utils.create_graph2vec import create_graphs
 
+import logging
+logger = logging.getLogger(__name__)
+
 import multiprocessing
 
 DEFAULT_WORKERS = max(1, multiprocessing.cpu_count() - 1)
@@ -27,8 +30,8 @@ def main():
         output_file = "./raw/wikipedia/processed_wiki_corpus_all_articles.bz2",
         min_article_character = 200,
         workers = DEFAULT_WORKERS,
-        include_interlinks=True,
-        coords_only=True
+        include_interlinks = True,
+        coords_only = False
     )
 
     build_doc2vec(
