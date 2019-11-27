@@ -10,17 +10,25 @@ import time
 logger = logging.getLogger(__name__)
 
 def build_doc2vec(input_file_path, output_file_path, num_workers):
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(format='%(asctime)s - %(module)s - %(levelname)s - %(message)s', level=logging.INFO)
     train_list = []
     count = 0
-    logger.info("starting!")
-    doc_iterator = (TaggedDocument(utils.simple_preprocess(json.loads(line)["text"]), json.loads(line)["title"]) for line in utils.open(input_file_path, 'rb'))
-    model = Doc2Vec(dm=0, dbow_words=1, vector_size=300, window=8, min_count=15, workers=num_workers)
-    model.build_vocab(doc_iterator)
-    for epoch in range(10):
-        logger.info("Epoch "+ str(epoch + 1))
-        model.train(doc_iterator, total_examples=model.corpus_count)
+    with utils.open(input_file_path, 'rb') as file:
+        for line in file:
+            article = json.loads(line)
+            title = article["title"]
+            text = article["text"]
+            # print(article.keys())
+            doc = TaggedDocument(utils.simple_preprocess(text), [title])
+            # print(doc)
+            # time.sleep(30)
+            train_list.append(doc)
+            count += 1
+            if count % 1000 == 0:
+                logger.info("Finished processing %d articles.", count)
+
+    logger.info("Finished processing all of the articles.")
+
+    model = Doc2Vec(train_list, dm=0, dbow_words=1, vector_size=300, window=8, min_count=15, epochs=10, workers=multiprocessing.cpu_count())
     #
     model.save(output_file_path)
 
