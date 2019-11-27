@@ -93,12 +93,12 @@ def train_model(params, train_loader, val_loader, writer):
         while epoch != num_epochs:
             epoch += 1
             for i, batch in enumerate(train_loader):
-                images, imr, ed_score = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device)
+                embeddings, imr, ed_score = batch['embedding'].to(device), batch['imr'].to(device), batch['ed_score'].to(device)
 
                 step += len(batch)
                 outs = {}
                 for task, dict in model_dict.items():
-                    out = dict['model'].forward(images)
+                    out = dict['model'].forward(embeddings)
                     outs[task] = out
                     loss = get_loss(out, task, (imr, ed_score), loss_fn)
                     dict['optimizer'].zero_grad()
@@ -143,9 +143,9 @@ def evaluate_model(models, val_loader, loss_fn, plot_preds=False, plot_info=None
     ins = {'imr': [], 'mated': []}
     outs = {'imr': [], 'mated': [], 'both': {'imr': [], 'mated': []}}
     for batch in val_loader:
-        images, imr, ed_score = batch['image'], batch['imr'], batch['ed_score']
+        embeddings, imr, ed_score = batch['embedding'], batch['imr'], batch['ed_score']
         for task, model in models.items():
-            out = model.forward(images)
+            out = model.forward(embeddings)
             if task == 'both':
                 outs[task]['imr'].append(out[0].detach().squeeze(-1))
                 outs[task]['mated'].append(out[1].detach().squeeze(-1))
