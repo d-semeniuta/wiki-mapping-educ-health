@@ -355,28 +355,6 @@ def big_loop(params):
             print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
             print('\tBoth Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['both']['imr'], corrs['both']['mated']))
 
-# def big_loop_old(params):
-#     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
-#     country_opts = countries + ['all']
-#     print('Generating data loaders...')
-#     data_loaders = generate_loaders(countries)
-#     for train in country_opts:
-#         print('Training on {}'.format(train))
-#         this_train = data_loaders[train]['train']
-#         this_val = data_loaders[train]['val']
-#         writer = SummaryWriter('runs3/train-{}'.format(train))
-#         mated_model, imr_model = train_model(params, this_train, this_val, writer)
-#
-#         print('Model trained in {} results:'.format(train))
-#         for val in country_opts:
-#             if val == 'all' and train != 'all':
-#                 val_loader = data_loaders[train]['others']['val']
-#             else:
-#                 val_loader = data_loaders[val]['val']
-#             imr_corr, mated_corr = evaluate_model(mated_model, imr_model, val_loader)
-#             print('\tValidated in {}'.format(val))
-#             print('\tIMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(imr_corr, mated_corr))
-
 def main():
     params = {
         'lr': 8e-4,

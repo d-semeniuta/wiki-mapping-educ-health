@@ -24,7 +24,7 @@ def parseArgs():
     return args, params
 
 
-def train(models, optimizers, loss_fns, train_loader, val_loader, writer, params):
+def train(models, optimizers, loss_fns, train_loader, val_loader, writer, params, epoch=0):
     """Trains the model for a single epoch
 
     Parameters
@@ -45,14 +45,14 @@ def train(models, optimizers, loss_fns, train_loader, val_loader, writer, params
     for model in models.values():
         model.train()
     device = params['device']
-    epoch, step = 0, 0
+    step = epoch * len(train_loader)
     total_batches = params['num_epochs'] * len(train_loader)
     best_corrs = {'imr': -1, 'mated': -1}
     with tqdm(total=total_batches) as progress_bar:
         epoch += 1
         while epoch != params['num_epochs']:
             for i, batch in enumerate(train_loader):
-                step += len(batch)
+                step += 1
                 images, imr, ed_score = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device)
                 labels = {'imr': imr, 'mated': ed_score}
                 for task, model in models.items():
@@ -85,17 +85,21 @@ def train(models, optimizers, loss_fns, train_loader, val_loader, writer, params
                 out_dir = os.path.join(params['model_dir'], params['country'])
                 if not os.path.exists(out_dir):
                     os.mkdir(out_dir)
-                last_out = os.path.join(out_dir, '{}.last.pth'.format(task))
                 dict_to_save = {
                     'epoch': epoch,
                     'state_dict': model.state_dict(),
-                    'optim_dict': optimizers[task].state_dict()
+                    'optim_dict': optimizers[task].state_dict(),
+                    'best_corr': best_corrs[task],
+                    'task': task
                 }
-                torch.save(dict_to_save, last_out)
                 if corrs[task] > best_corrs[task]:
+                    # best by correlation
                     best_corrs[task] = corrs[task]
+                    dict_to_save['best_corr'] = best_corrs[task]
                     best_out = os.path.join(out_dir, '{}.best.pth'.format(task))
                     torch.save(dict_to_save, best_out)
+                last_out = os.path.join(out_dir, '{}.last.pth'.format(task))
+                torch.save(dict_to_save, last_out)
     return models
 
 def evaluate(models, val_loader, loss_fns, params):
@@ -125,9 +129,20 @@ def evaluate(models, val_loader, loss_fns, params):
 
     return (corrs, losses), (ins, outs)
 
+def loadModels(args, params):
+    # TODO: load models
+
+    if args.restore_file is not None:
+
+        pass
+
+def getDataLoaders(params):
+    pass
 
 def main():
     args, params = parseArgs()
+    training_dicts = loadModels(args, params)
+    data_loaders = getDataLoaders(params)
 
 if __name__ == '__main__':
     main()
