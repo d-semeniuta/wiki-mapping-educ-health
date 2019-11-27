@@ -37,7 +37,7 @@ class Graph2VecAfricaDataset(Dataset):
             cluster_row = self.combined_dhs.iloc[idx]
             cluster_id = cluster_row['cluster_id']
 
-            embedding = self.graph2vec_embeddings.loc[self.graph2vec_embeddings['id'] == int(cluster_id)].to_numpy()
+            embedding = self.graph2vec_embeddings.loc[self.graph2vec_embeddings['id'] == int(cluster_id)].to_numpy()[1:]
             embedding = from_numpy(embedding)
 
             ed_labels = ['no_education', 'primary_education', 'secondary_education',
