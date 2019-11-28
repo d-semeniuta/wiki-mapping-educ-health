@@ -21,6 +21,7 @@ def parseArgs():
                         training")  # 'best' or 'last'
     parser.add_argument('--use_graph', action='store_true', help='Use graph embeddings when training, default false')
     parser.add_argument('--vec_feature_path', default=None, help="File containing vec features")
+    parser.add_argument('--guf_path', default=None, help="File containing vec features")
 
     args = parser.parse_args()
     param_loc = os.path.join(args.model_dir, 'params.json')
@@ -173,8 +174,8 @@ def loadModels(args, params):
 def train_loop(countries, args, params):
     country_opts = countries + ['all']
     print('Generating data loaders...')
-    data_loaders = getDataLoaders(countries, args.use_graph, args.vec_feature_path,
-                                    params['batch_size'])
+    data_loaders = getDataLoaders(countries, args.guf_path, args.vec_feature_path,
+                                    params['batch_size'], use_graph=args.use_graph)
     for train in country_opts:
         print('\nTraining on {}...'.format(train))
         this_train = data_loaders[train]['train']
@@ -204,7 +205,6 @@ def train_loop(countries, args, params):
 
 def main():
     args, params = parseArgs()
-    # training_dicts = loadModels(args, params)
     countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
     train_loop(countries, args, params)
 

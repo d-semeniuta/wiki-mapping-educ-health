@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import pandas as pd
 
 from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler
@@ -12,9 +13,7 @@ african_countries = ['Angola', 'Benin', 'Burundi', 'Egypt', 'Ethiopia', 'Ghana',
     'Lesotho', 'Malawi', 'Mozambique', 'Rwanda', 'Chad', 'Tanzania', 'Uganda', 'Zimbabwe']
 
 class CombinedAfricaDataset(Dataset):
-    def __init__(self, dhs_data_loc=None, cluster_image_dir=None,
-                    vec_feature_path=None,
-                    # graph2vec_feature_path=None, doc2vec_feature_path=None,
+    def __init__(self, dhs_data_loc=None, cluster_image_dir=None, vec_feature_path=None,
                     use_graph=False, countries=african_countries):
         if isinstance(countries, str)
             countries = [countries]
@@ -31,6 +30,13 @@ class CombinedAfricaDataset(Dataset):
         combined_dhs = pd.read_csv(dhs_data_loc)
         self.combined_dhs = combined_dhs[combined_dhs['country'].isin(countries)]
 
+        # guf data
+        if cluster_image_dir is None:
+            self.cluster_image_dir = os.path.join(proj_head, 'data', 'processed', 'guf')
+        else:
+            self.cluster_image_dir = cluster_image_dir
+
+        # wiki embeddings
         if use_graph:
             if vec_feature_path is None:
                 vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'graph2vec_feature_set_two_hops.csv')
@@ -76,17 +82,20 @@ def split_dataset(dataset, batch_size=16, validation_split=0.2):
                                         sampler=valid_sampler)
     return train_loader, val_loader
 
-def getDataLoaders(countries, use_graph, vec_feature_path, batch_size):
+def getDataLoaders(countries, guf_path, vec_feature_path, batch_size, use_graph=False):
+    def get_dataset(countries):
+        return CombinedAfricaDataset(countries=countries, cluster_image_dir=guf_path,
+                                        use_graph=use_graph, vec_feature_path=vec_feature_path)
     data_loaders = {}
     for country in countries:
-        data = CombinedAfricaDataset(countries=country, use_graph=use_graph, vec_feature_path=vec_feature_path)
+        data = get_dataset(country)
         others = [c for c in countries if c is not country]
-        others_data = CombinedAfricaDataset(countries=others, use_graph=use_graph, vec_feature_path=vec_feature_path)
+        others_data = get_dataset(others)
         data_loaders[country] = {}
         data_loaders[country]['train'], data_loaders[country]['val'] = split_dataset(data, batch_size=batch_size)
         data_loaders[country]['others'] = {}
         data_loaders[country]['others']['train'], data_loaders[country]['others']['val'] = split_dataset(others_data, batch_size=batch_size)
-    alldata = CombinedAfricaDataset(countries=countries, use_graph=use_graph, vec_feature_path=vec_feature_path)
+    alldata = get_dataset(countries)
     data_loaders['all'] = {}
     data_loaders['all']['train'], data_loaders['all']['val'] = split_dataset(alldata, batch_size=batch_size)
 
