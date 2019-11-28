@@ -5,12 +5,14 @@ import pandas as pdb
 from torch.utils.data import Dataset
 from torch import from_numpy
 
+from gensim.models.doc2vec import Doc2Vec
+
 african_countries = ['Angola', 'Benin', 'Burundi', 'Egypt', 'Ethiopia', 'Ghana', 'Kenya',
     'Lesotho', 'Malawi', 'Mozambique', 'Rwanda', 'Chad', 'Tanzania', 'Uganda', 'Zimbabwe']
 
 class Doc2VecAfricaDataset(Dataset):
 
-    def __init__(self, dhs_data_loc=None, doc2vec_feature_path = None, countries = african_countries):
+    def __init__(self, dhs_data_loc=None, nearest_articles_path = None, countries = african_countries):
         if isinstance(countries, str)
             countries = [countries]
         elif not isinstance(countries, list):
@@ -25,20 +27,28 @@ class Doc2VecAfricaDataset(Dataset):
         combined_dhs = pd.read_csv(dhs_data_loc)
         self.combined_dhs = combined_dhs[combined_dhs['country'].isin(countries)]
 
-        if doc2vec_feature_path is None:
-            doc2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'doc2vec_feature_set_two_hops.csv')
+        doc2vec_path = os.path.join(proj_head, 'model', 'doc2vec', 'coord_articles_only_doc2vec.model')
+        self.doc2vec = Doc2Vec.load(doc2vec_path)
 
-        self.doc2vec_embeddings = pd.read_csv(doc2vec_feature_path)
+        if nearest_articles_path is None:
+            nearest_articles_path = os.path.join(proj_head, 'data', 'processed', 'nearest_articles.csv')
+
+        self.nearest_articles = pd.read_csv(nearest_articles_path, sep=";")
 
         def __len__(self):
             return len(self.combined_dhs)
 
         def __getitem__(self, idx):
             cluster_row = self.combined_dhs.iloc[idx]
-            cluster_id = cluster_row['cluster_id']
 
-            embedding = self.doc2vec_embeddings.loc[self.doc2vec_embeddings['id'] == int(cluster_id)].to_numpy()[1:]
-            embedding = from_numpy(embedding)
+            cols = self.nearest_articles.columns
+            articles_row = self.nearest_articles.loc[self.nearest_articles[cols[0]] == idx]
+            titles = list(articles_row[cols[1:11]].to_numpy())
+            embedding = []
+            for title in titles:
+                embedding += list(model.docvecs[title])
+            dists = map(float,list(articles_row[cols[11:]].to_numpy()))
+            embedding += dists
 
             ed_labels = ['no_education', 'primary_education', 'secondary_education',
                             'higher_education']
