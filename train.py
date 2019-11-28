@@ -10,12 +10,18 @@ import torch
 
 from scipy.stats import pearsonr
 
+from util.data import getDataLoaders
+from model.combined.model import MultiModalNet
+
 def parseArgs():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_dir', default='experiments/base_model', help="Directory containing params.json")
     parser.add_argument('--restore_file', default=None,
                         help="Optional, name of the file in --model_dir containing weights to reload before \
                         training")  # 'best' or 'last'
+    parser.add_argument('--use_graph', action='store_true', help='Use graph embeddings when training, default false')
+    parser.add_argument('--vec_feature_path', default=None, help="File containing vec features")
+
     args = parser.parse_args()
     param_loc = os.path.join(args.model_dir, 'params.json')
     params = json.load(param_loc)
@@ -24,7 +30,7 @@ def parseArgs():
     return args, params
 
 
-def train(models, optimizers, loss_fns, train_loader, val_loader, writer, params, epoch=0):
+def train(training_dict, loss_fns, train_loader, val_loader, writer, params):
     """Trains the model for a single epoch
 
     Parameters
@@ -130,19 +136,78 @@ def evaluate(models, val_loader, loss_fns, params):
     return (corrs, losses), (ins, outs)
 
 def loadModels(args, params):
-    # TODO: load models
+    models = {}
+    optims = {}
+    best_corrs = {}
+    loss_fns = {}
+    epoch = 0
+    for task in ['imr', 'mated']:
+        model = MultiModalNet(params, args.use_graph)
+        optim = optim.Adam(
+            model.parameters(), lr=params['lr'], betas=(params['b1'], params['b2'])
+        )
+        best_corr = -1
+        if args.restore_file is not None:
+            if args.restore_file is not 'last':
+                raise(ValueError("Can't load from best with current training setup"))
+            cp_loc = os.path.join(args.model_dir, '{}.last.pth'.format(task))
+            cp = torch.load(cp_loc)
+            model.load_state_dict(cp['state_dict'])
+            optim.load_state_dict(cp['optim_dict'])
+            best_corr = cp['best_corr']
+            epoch = cp['epoch']
+        models[task] = model
+        optims[task] = optim
+        best_corrs[task] = best_corr
+        loss_fn[task] = nn.MSELoss()
 
-    if args.restore_file is not None:
+    training_dict = {
+        'models': models,
+        'optims': optims,
+        'best_corrs': best_corrs,
+        'loss_fns': loss_fns,
+        'epoch': epoch
+    }
+    return training_dict
 
-        pass
+def train_loop(countries, args, params):
+    country_opts = countries + ['all']
+    print('Generating data loaders...')
+    data_loaders = getDataLoaders(countries, args.use_graph, args.vec_feature_path,
+                                    params['batch_size'])
+    for train in country_opts:
+        print('\nTraining on {}...'.format(train))
+        this_train = data_loaders[train]['train']
+        this_val = data_loaders[train]['val']
+        # params['run_name'] = 'run0/train-{}'.format(train)
+        writer_dir = os.path.join(args.model_dir, 'tb', train)
+        writer = SummaryWriter(writer_dir)
+        training_dict = loadModels(args, params)
+        models = train(training_dict, loss_fns, this_train, this_val, writer, params)
 
-def getDataLoaders(params):
-    pass
+        print('Model trained in {} results:'.format(train))
+        for val in country_opts:
+            if val == 'all' and train != 'all':
+                val_loader = data_loaders[train]['others']['val']
+            else:
+                val_loader = data_loaders[val]['val']
+            plot_info = {
+                'save_dir' : os.path.join(args.model_dir, 'plots'),
+                'title' : 'Train in {}, Val in {}'.format(train, val)
+            }
+            if not os.path.exists(plot_info['save_dir']):
+                os.makedirs(plot_info['save_dir'])
+            (corrs, losses), (ins, outs) = evaluate_model(models, val_loader, training_dict['loss_fn'])
+            plotPreds(ins, outs, corrs, plot_info)
+            print('\tValidated in {}'.format(val))
+            print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
 
 def main():
     args, params = parseArgs()
-    training_dicts = loadModels(args, params)
-    data_loaders = getDataLoaders(params)
+    # training_dicts = loadModels(args, params)
+    countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
+    train_loop(countries, args, params)
+
 
 if __name__ == '__main__':
     main()

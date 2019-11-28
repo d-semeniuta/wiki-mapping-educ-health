@@ -5,6 +5,7 @@ import os
 
 import numpy as np
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 
 REPO_HEAD = os.path.abspath('../')
 
@@ -168,33 +169,69 @@ def produce_geo_scatter_plot(df, title, img_name, countries=None, color_col=None
         )
     fig.write_image(os.path.join(out_dir, '{}.{}'.format(img_name, img_format)))
 
-def split_dataset(dataset, batch_size=16, validation_split=0.2):
-    dataset_size = len(dataset)
-    indices = list(range(dataset_size))
-    split = int(np.floor(validation_split * dataset_size))
-    np.random.shuffle(indices)
-    train_indices, val_indices = indices[split:], indices[:split]
-    train_sampler = data.SubsetRandomSampler(train_indices)
-    valid_sampler = data.SubsetRandomSampler(val_indices)
-    train_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
-                                        sampler=train_sampler)
-    val_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
-                                        sampler=valid_sampler)
-    return train_loader, val_loader
+def plotSingle_plotly(ins, outs, corr, save_dir, title, task):
+    trace1 = go.Scatter(
+        x=ins,
+        y=outs,
+        mode='markers',
+        name='Predictions'
+    )
+    max_val = 3 if task == 'mated' else 1
+    xi = np.arange(0,max_val,0.01)
+    trace2 = go.Scatter(
+        x=xi,
+        y=xi,
+        mode='lines',
+        name='Fit'
+    )
 
-def generate_loaders(countries, data_class, params):
+    annotation = go.layout.Annotation(
+        x=0.05,
+        y=max_val-0.05,
+        text='$R^2 = {:.3f}$'.format(corr),
+        showarrow=False,
+    )
+    layout = go.Layout(
+        title = title,
+        xaxis_title = 'Ground Truth',
+        yaxis_title = 'Predictions',
+        annotations=[annotation]
+    )
+    fig=go.Figure(data=[trace1,trace2], layout=layout)
 
-    data_loaders = {}
-    for country in countries:
-        data = data_class(countries=country)
-        others = [c for c in countries if c is not country]
-        others_data = data_class(countries=others)
-        data_loaders[country] = {}
-        data_loaders[country]['train'], data_loaders[country]['val'] = split_dataset(dataset, params['batch_size'], params['val_split'])
-        data_loaders[country]['others'] = {}
-        data_loaders[country]['others']['train'], data_loaders[country]['others']['val'] = split_dataset_with_params(others_data)
-    alldata = data_class(countries=countries)
-    data_loaders['all'] = {}
-    data_loaders['all']['train'], data_loaders['all']['val'] = split_dataset(dataset, params['batch_size'], params['val_split'])
+    save_loc = os.path.join(save_dir, '{}.{}'.format(task, format))
+    fig.write_image(save_loc)
 
-    return data_loaders
+def plotSingle_plt(ins, outs, corr, save_dir, title, task):
+    fig, ax = plt.subplots()
+    ax.scatter(ins, outs)
+    line = mlines.Line2D([0, 1], [0, 1], color='red')
+    transform = ax.transAxes
+    line.set_transform(transform)
+    ax.add_line(line)
+    ax.text(left, top, 'Corr: {:.3f}'.format(corr),
+        horizontalalignment='left',
+        verticalalignment='top',
+        transform=ax.transAxes)
+    plt.title(title)
+    plt.xlabel('Ground Truth')
+    plt.ylabel('Predictions')
+    for format in ['png', 'svg', 'eps']:
+        # save in multiple formats, just to be safe
+        save_loc = os.path.join(save_dir, '{}.{}'.format(task, format))
+        plt.savefig(save_loc, format=format, dpi=1200)
+
+def plotSingle(this_in, this_out, corr, save_loc, title, task, use_plotly=False):
+    if use_plotly:
+        plotSingle_plotly(ins, outs, corr, save_loc, title, task)
+    else:
+        plotSingle_plt(ins, outs, corr, save_loc, title, task)
+
+def plotPreds(ins, outs, corrs, plot_info, use_plotly=False):
+    for task in ins.keys():
+        this_in = ins[task]
+        this_out = outs[task]
+        corr = corrs[task]
+        save_loc = plot_info['save_dir']
+        title = '{}, {}'.format(plot_info['title'], task)
+        plotSingle(this_in, this_out, corr, save_loc, title, task, use_plotly)

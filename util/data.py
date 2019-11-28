@@ -13,7 +13,8 @@ african_countries = ['Angola', 'Benin', 'Burundi', 'Egypt', 'Ethiopia', 'Ghana',
 
 class CombinedAfricaDataset(Dataset):
     def __init__(self, dhs_data_loc=None, cluster_image_dir=None,
-                    graph2vec_feature_path=None, doc2vec_feature_path=None,
+                    vec_feature_path=None,
+                    # graph2vec_feature_path=None, doc2vec_feature_path=None,
                     use_graph=False, countries=african_countries):
         if isinstance(countries, str)
             countries = [countries]
@@ -31,13 +32,13 @@ class CombinedAfricaDataset(Dataset):
         self.combined_dhs = combined_dhs[combined_dhs['country'].isin(countries)]
 
         if use_graph:
-            if graph2vec_feature_path is None:
-                graph2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'graph2vec_feature_set_two_hops.csv')
-            self.embeddings = pd.read_csv(graph2vec_feature_path)
+            if vec_feature_path is None:
+                vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'graph2vec_feature_set_two_hops.csv')
+            self.embeddings = pd.read_csv(vec_feature_path)
         else:
-            if doc2vec_feature_path is None:
-                doc2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'doc2vec_feature_set_two_hops.csv')
-            self.embeddings = pd.read_csv(doc2vec_feature_path)
+            if vec_feature_path is None:
+                vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'doc2vec_feature_set_two_hops.csv')
+            self.embeddings = pd.read_csv(vec_feature_path)
 
     def __len__(self):
         return len(self.combined_dhs)
@@ -48,7 +49,7 @@ class CombinedAfricaDataset(Dataset):
         img_nm = os.path.join(self.cluster_image_dir, '{}.png'.format(cluster_id))
         image = self.transform(imread(img_nm))
 
-        embedding = self.embeddings.loc[self.embeddings['id'] == int(cluster_id)].to_numpy()
+        embedding = self.embeddings.loc[self.embeddings['id'] == int(cluster_id)].to_numpy()[1:]
         embedding = torch.from_numpy(embedding)
 
         ed_labels = ['no_education', 'primary_education', 'secondary_education',
@@ -75,18 +76,18 @@ def split_dataset(dataset, batch_size=16, validation_split=0.2):
                                         sampler=valid_sampler)
     return train_loader, val_loader
 
-def getDataLoaders(params, countries, use_graph=False):
+def getDataLoaders(countries, use_graph, vec_feature_path, batch_size):
     data_loaders = {}
     for country in countries:
-        data = CombinedAfricaDataset(countries=country, use_graph=use_graph)
+        data = CombinedAfricaDataset(countries=country, use_graph=use_graph, vec_feature_path=vec_feature_path)
         others = [c for c in countries if c is not country]
-        others_data = CombinedAfricaDataset(countries=others, use_graph=use_graph)
+        others_data = CombinedAfricaDataset(countries=others, use_graph=use_graph, vec_feature_path=vec_feature_path)
         data_loaders[country] = {}
-        data_loaders[country]['train'], data_loaders[country]['val'] = split_dataset(data, batch_size=params['batch_size'])
+        data_loaders[country]['train'], data_loaders[country]['val'] = split_dataset(data, batch_size=batch_size)
         data_loaders[country]['others'] = {}
-        data_loaders[country]['others']['train'], data_loaders[country]['others']['val'] = split_dataset(others_data)
-    alldata = CombinedAfricaDataset(countries=countries, use_graph=use_graph)
+        data_loaders[country]['others']['train'], data_loaders[country]['others']['val'] = split_dataset(others_data, batch_size=batch_size)
+    alldata = CombinedAfricaDataset(countries=countries, use_graph=use_graph, vec_feature_path=vec_feature_path)
     data_loaders['all'] = {}
-    data_loaders['all']['train'], data_loaders['all']['val'] = split_dataset(alldata)
+    data_loaders['all']['train'], data_loaders['all']['val'] = split_dataset(alldata, batch_size=batch_size)
 
     return data_loaders

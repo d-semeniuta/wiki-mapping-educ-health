@@ -12,11 +12,14 @@ class MultiModalNet(nn.Module):
         img_emb_size = 256
         self.guf_net = GUFConv(img_emb_size, params['conv_activation'])
 
-        wiki_emb_size = 256
-        if use_graph:
-            self.wiki_net = GraphNet()
-        else:
-            self.wiki_net = DocNet()
+        # magic numbers, can we do better?
+        wiki_emb_size_in = 300 if use_graph else 3010
+        wiki_emb_size_out = 256
+        self.wiki_net = nn.Sequential(
+            nn.Linear(wiki_emb_size_in, 512), nn.ReLU(),
+            nn.Linear(512, 512), nn.ReLU(),
+            nn.Linear(512, wiki_emb_size_out), nn.ReLU()
+        )
 
         self.out_layers = nn.Sequential(
             nn.Linear(img_emb_size+wiki_emb_size, 256), nn.ReLU(),

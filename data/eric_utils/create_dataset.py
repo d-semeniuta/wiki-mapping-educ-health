@@ -28,7 +28,7 @@ def compute_distance(c1, c2):
         logger.info("problem with the coordinate - not sure why sad.")
         return -1
 
-def find_clostest_articles(lat, lon, parsed_path, num_nearest=10):
+def find_closest_articles(lat, lon, parsed_path, num_nearest=10):
     distances = []
     count = 0
     with utils.open(parsed_path, 'rb') as file:
@@ -54,7 +54,7 @@ def create_doc2vec_dataset(doc2vec_path, parsed_path, number, file_path):
             embedding_collector = []
             distance_collector = []
             clust_lat, clust_lon = df["Lat"][i], df["Lon"][i]
-            topn = find_clostest_articles(clust_lat, clust_lon, parsed_path, number)
+            topn = find_closest_articles(clust_lat, clust_lon, parsed_path, number)
             for entry in topn:
                 title = entry[1]
                 distance = entry[0]
