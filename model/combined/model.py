@@ -3,7 +3,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from model.combined.guf_net.layers import GUFConv
+import sys
+sys.path.append('../../')
+from model.guf_net.layers import GUFConv
 
 class MultiModalNet(nn.Module):
     def __init__(self, params, use_graph=False):
