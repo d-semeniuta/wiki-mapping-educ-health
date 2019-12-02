@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 import sys
 sys.path.append('../../')
-from model.guf_net.layers import GUFConv
+from model.guf_net.layers.guf_conv import GUFConv
 
 class MultiModalNet(nn.Module):
     def __init__(self, params, use_graph=False):

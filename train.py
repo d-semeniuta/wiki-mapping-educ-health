@@ -25,7 +25,8 @@ def parseArgs():
 
     args = parser.parse_args()
     param_loc = os.path.join(args.model_dir, 'params.json')
-    params = json.load(param_loc)
+    with open(param_loc) as json_file:
+        params = json.load(json_file)
     params['device'] =  torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     params['model_dir'] = args.model_dir
     return args, params
