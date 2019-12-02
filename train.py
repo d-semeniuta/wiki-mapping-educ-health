@@ -86,9 +86,9 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
 
     epoch = 0
 
-    with tqdm(total=num_epochs) as progress_bar:
+    with tqdm(total=total_batches) as progress_bar:
         epoch += 1
-        while epoch != params['num_epochs']:
+        while epoch < params['num_epochs']:
             for i, batch in enumerate(train_loader):
                 step += 1
                 images, imr, ed_score, embeddings = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device), batch['emb'].to(device)
@@ -101,7 +101,7 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
                     loss.backward()
                     optimizer.step()
                     writer.add_scalar('train/{}/loss'.format(task), loss.item(), step)
-            progress_bar.update(1)
+                progress_bar.update(1)
         # check evaluation step
         if epoch % params['eval_every'] == 0:
             (corrs, losses), _ = evaluate(models, val_loader, loss_fns, params, writer=writer)
