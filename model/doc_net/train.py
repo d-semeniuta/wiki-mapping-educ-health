@@ -7,6 +7,7 @@ from data import Doc2VecAfricaDataset
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.utils.data as data
 import numpy as np
 from sklearn.metrics import r2_score
 from scipy.stats import pearsonr
@@ -15,7 +16,7 @@ from scipy.stats import spearmanr
 import plotly.graph_objects as go
 
 from tqdm import tqdm
-from tensorboardx import SummaryWriter
+from tensorboardX import SummaryWriter
 
 def split_dataset(dataset, batch_size=16, validation_split=0.2):
     dataset_size = len(dataset)

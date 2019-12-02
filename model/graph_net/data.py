@@ -26,25 +26,25 @@ class Graph2VecAfricaDataset(Dataset):
         self.combined_dhs = combined_dhs[combined_dhs['country'].isin(countries)]
 
         if graph2vec_feature_path is None:
-            graph2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'graph2vec_feature_set_two_hops.csv')
+            graph2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'two_hop.csv')
 
-        self.graph2vec_embeddings = pd.read_csv(graph2vec_feature_path)
+        self.graph2vec_embeddings = pd.read_csv(graph2vec_feature_path, header=0)
 
-        def __len__(self):
-            return len(self.combined_dhs)
+    def __len__(self):
+        return len(self.combined_dhs)
 
-        def __getitem__(self, idx):
-            cluster_row = self.combined_dhs.iloc[idx]
-            cluster_id = cluster_row['cluster_id']
+    def __getitem__(self, idx):
+        cluster_row = self.combined_dhs.iloc[idx]
+        cluster_id = cluster_row['cluster_id']
 
-            embedding = self.graph2vec_embeddings.loc[self.graph2vec_embeddings['id'] == int(cluster_id)].to_numpy()[1:]
-            embedding = from_numpy(embedding)
+        embedding = self.graph2vec_embeddings.loc[self.graph2vec_embeddings['id'] == int(cluster_id)].to_numpy()[1:]
+        embedding = from_numpy(embedding)
 
-            ed_labels = ['no_education', 'primary_education', 'secondary_education',
-                            'higher_education']
-            ed_score = 0
-            for i, label in enumerate(ed_labels):
-                ed_score += i * cluster_row['pct_{}'.format(label)]
+        ed_labels = ['no_education', 'primary_education', 'secondary_education',
+                        'higher_education']
+        ed_score = 0
+        for i, label in enumerate(ed_labels):
+            ed_score += i * cluster_row['pct_{}'.format(label)]
 
-            imr = cluster_row['imr']
-            return {'embedding': embedding, 'ed_score': ed_score, 'imr': imr}
+        imr = cluster_row['imr']
+        return {'embedding': embedding, 'ed_score': ed_score, 'imr': imr}
