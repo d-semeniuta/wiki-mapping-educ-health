@@ -5,13 +5,26 @@ Train the model
 import argparse
 import os
 import json
+import random
 
 import torch
+import torch.optim as optim
+import torch.utils.data as data
+import torch.nn as nn
 
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, linregress
+
+from tensorboardX import SummaryWriter
+
+import numpy as np
+
+import plotly.graph_objects as go
+
+from tqdm import tqdm
 
 from util.data import getDataLoaders
 from model.combined.model import MultiModalNet
+
 
 def parseArgs():
     parser = argparse.ArgumentParser()
@@ -31,8 +44,17 @@ def parseArgs():
     params['model_dir'] = args.model_dir
     return args, params
 
+def get_loss(out, task, labels, loss_fn):
+    imr, ed_score = labels
+    if task == 'imr':
+        loss = loss_fn(out, imr.unsqueeze(-1))
+    elif task == 'mated':
+        loss = loss_fn(out, ed_score.unsqueeze(-1))
+    else:
+        loss = loss_fn(out[0], imr.unsqueeze(-1)) + loss_fn(out[1], ed_score.unsqueeze(-1))
+    return loss
 
-def train(training_dict, loss_fns, train_loader, val_loader, writer, params):
+def train_model(training_dict, loss_fns, train_loader, val_loader, writer, params):
     """Trains the model for a single epoch
 
     Parameters
@@ -50,8 +72,13 @@ def train(training_dict, loss_fns, train_loader, val_loader, writer, params):
     params : dict
 
     """
+    epoch = training_dict['epoch']
+    models = training_dict['models']
+    optimizers = training_dict['optims']
+
     for model in models.values():
         model.train()
+
     device = params['device']
     step = epoch * len(train_loader)
     total_batches = params['num_epochs'] * len(train_loader)
@@ -61,12 +88,12 @@ def train(training_dict, loss_fns, train_loader, val_loader, writer, params):
         while epoch != params['num_epochs']:
             for i, batch in enumerate(train_loader):
                 step += 1
-                images, imr, ed_score = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device)
+                images, imr, ed_score, embeddings = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device), batch['emb'].to(device)
                 labels = {'imr': imr, 'mated': ed_score}
                 for task, model in models.items():
                     optimizer = optimizers[task]
-                    out = model.forward(images)
-                    loss = loss_fn(out, labels[task])
+                    out = model.forward(embeddings, images)
+                    loss = get_loss(out, task, (imr, ed_score), loss_fns[task])
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -145,7 +172,7 @@ def loadModels(args, params):
     epoch = 0
     for task in ['imr', 'mated']:
         model = MultiModalNet(params, args.use_graph)
-        optim = optim.Adam(
+        curr_optim = optim.Adam(
             model.parameters(), lr=params['lr'], betas=(params['b1'], params['b2'])
         )
         best_corr = -1
@@ -159,9 +186,9 @@ def loadModels(args, params):
             best_corr = cp['best_corr']
             epoch = cp['epoch']
         models[task] = model
-        optims[task] = optim
+        optims[task] = curr_optim
         best_corrs[task] = best_corr
-        loss_fn[task] = nn.MSELoss()
+        loss_fns[task] = nn.MSELoss()
 
     training_dict = {
         'models': models,
@@ -185,7 +212,8 @@ def train_loop(countries, args, params):
         writer_dir = os.path.join(args.model_dir, 'tb', train)
         writer = SummaryWriter(writer_dir)
         training_dict = loadModels(args, params)
-        models = train(training_dict, loss_fns, this_train, this_val, writer, params)
+        loss_fns = training_dict['loss_fns']
+        models = train_model(training_dict, loss_fns, this_train, this_val, writer, params)
 
         print('Model trained in {} results:'.format(train))
         for val in country_opts:

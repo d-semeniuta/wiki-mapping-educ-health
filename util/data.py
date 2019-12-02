@@ -7,6 +7,10 @@ from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler
 from torchvision import transforms
 from skimage.io import imread
 
+from torch import from_numpy
+
+from gensim.models.doc2vec import Doc2Vec
+
 import torch
 
 african_countries = ['Angola', 'Benin', 'Burundi', 'Egypt', 'Ethiopia', 'Ghana', 'Kenya',
@@ -22,7 +26,7 @@ class CombinedAfricaDataset(Dataset):
         if len(set(countries) - set(african_countries)) > 0:
             Raise(ValueError('Countries out of dataset'))
 
-        proj_head = os.path.abspath('../')
+        proj_head = os.path.abspath('./')
 
         # ground truth
         if dhs_data_loc is None:
@@ -32,7 +36,7 @@ class CombinedAfricaDataset(Dataset):
 
         # guf data
         if cluster_image_dir is None:
-            self.cluster_image_dir = os.path.join(proj_head, 'data', 'processed', 'guf')
+            self.cluster_image_dir = os.path.join(proj_head, 'data', 'raw', 'nightlights', 'cluster_images')
         else:
             self.cluster_image_dir = cluster_image_dir
 
@@ -40,18 +44,24 @@ class CombinedAfricaDataset(Dataset):
 
         # wiki embeddings
         if self.use_graph:
-            if graph2vec_feature_path is None:
-                graph2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'two_hop.csv')
+
+            graph2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'two_hop.csv')
 
             self.graph2vec_embeddings = pd.read_csv(graph2vec_feature_path, header=0)
         else:
             doc2vec_path = os.path.join(proj_head, 'model', 'doc2vec', 'coord_articles_only_doc2vec.model')
             self.doc2vec = Doc2Vec.load(doc2vec_path)
 
-            if nearest_articles_path is None:
-                nearest_articles_path = os.path.join(proj_head, 'data', 'processed', 'nearest_articles.csv')
+
+            nearest_articles_path = os.path.join(proj_head, 'data', 'processed', 'nearest_articles.csv')
 
             self.nearest_articles = pd.read_csv(nearest_articles_path, sep=";", header = None)
+
+        self.transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.CenterCrop(64),
+            transforms.ToTensor()
+        ])
 
     def __len__(self):
         return len(self.combined_dhs)
