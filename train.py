@@ -83,7 +83,7 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
     step = epoch * len(train_loader)
     total_batches = params['num_epochs'] * len(train_loader)
     best_corrs = {'imr': -1, 'mated': -1}
-    with tqdm(total=total_batches) as progress_bar:
+    with tqdm(total=num_epochs) as progress_bar:
         epoch += 1
         while epoch != params['num_epochs']:
             for i, batch in enumerate(train_loader):
@@ -98,7 +98,7 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
                     loss.backward()
                     optimizer.step()
                     writer.add_scalar('train/{}/loss'.format(task), loss.item(), step)
-                progress_bar.update(1)
+            progress_bar.update(1)
         # check evaluation step
         if epoch % params['eval_every'] == 0:
             (corrs, losses), _ = evaluate(models, val_loader, loss_fns, params, writer=writer)
