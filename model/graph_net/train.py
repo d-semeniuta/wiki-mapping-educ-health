@@ -7,15 +7,15 @@ from data import Graph2VecAfricaDataset
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.utils.data as data
 import numpy as np
 from sklearn.metrics import r2_score
-from scipy.stats import pearsonr
-from scipy.stats import spearmanr
+from scipy.stats import pearsonr, linregress
 
 import plotly.graph_objects as go
 
 from tqdm import tqdm
-from tensorboardx import SummaryWriter
+from tensorboardX import SummaryWriter
 
 def split_dataset(dataset, batch_size=16, validation_split=0.2):
     dataset_size = len(dataset)
@@ -177,7 +177,7 @@ def evaluate_model(models, val_loader, loss_fn, plot_preds=False, plot_info=None
     if plot_preds:
         if plot_info is None:
             raise(ValueError('Missing plot params'))
-        plotPreds(ins, cat_outs, corrs, plot_info)
+        # plotPreds(ins, cat_outs, corrs, plot_info)
     return corrs, losses
 
 def plotSingle(ins, outs, corr, save_loc, title, task):
