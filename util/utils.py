@@ -5,6 +5,7 @@ import os
 
 import numpy as np
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 
 REPO_HEAD = os.path.abspath('../')
 
@@ -168,32 +169,69 @@ def produce_geo_scatter_plot(df, title, img_name, countries=None, color_col=None
         )
     fig.write_image(os.path.join(out_dir, '{}.{}'.format(img_name, img_format)))
 
-def testComputeDistMatrix():
-    A = np.random.uniform(-360,360,(100,2))
-    B = np.random.uniform(-360,360,(5000,2))
-    C = compute_hav_dist_matrix(A,B)
-    assert(C.shape == (100,5000))
-    C_T = compute_hav_dist_matrix(B,A)
-    assert(np.array_equal(C, C_T.T))
-    assert(np.all(C >= 0))
-    assert(np.all(C <= np.pi))
+def plotSingle_plotly(ins, outs, corr, save_dir, title, task):
+    trace1 = go.Scatter(
+        x=ins,
+        y=outs,
+        mode='markers',
+        name='Predictions'
+    )
+    max_val = 3 if task == 'mated' else 1
+    xi = np.arange(0,max_val,0.01)
+    trace2 = go.Scatter(
+        x=xi,
+        y=xi,
+        mode='lines',
+        name='Fit'
+    )
 
-    import time
-    def time_me(A, B):
-        times = []
-        for _ in range(100):
-            start = time.time()
-            compute_hav_dist_matrix(A,B)
-            end = time.time()
-            times.append(end-start)
-        print('Average time taken: {}'.format(np.mean(times)))
+    annotation = go.layout.Annotation(
+        x=0.05,
+        y=max_val-0.05,
+        text='$R^2 = {:.3f}$'.format(corr),
+        showarrow=False,
+    )
+    layout = go.Layout(
+        title = title,
+        xaxis_title = 'Ground Truth',
+        yaxis_title = 'Predictions',
+        annotations=[annotation]
+    )
+    fig=go.Figure(data=[trace1,trace2], layout=layout)
 
-    # testing the timing of swapping application order
-    time_me(A,B)
-    time_me(B,A)
+    save_loc = os.path.join(save_dir, '{}.{}'.format(task, format))
+    fig.write_image(save_loc)
 
-def main():
-    testComputeDistMatrix()
+def plotSingle_plt(ins, outs, corr, save_dir, title, task):
+    fig, ax = plt.subplots()
+    ax.scatter(ins, outs)
+    line = mlines.Line2D([0, 1], [0, 1], color='red')
+    transform = ax.transAxes
+    line.set_transform(transform)
+    ax.add_line(line)
+    ax.text(left, top, 'Corr: {:.3f}'.format(corr),
+        horizontalalignment='left',
+        verticalalignment='top',
+        transform=ax.transAxes)
+    plt.title(title)
+    plt.xlabel('Ground Truth')
+    plt.ylabel('Predictions')
+    for format in ['png', 'svg', 'eps']:
+        # save in multiple formats, just to be safe
+        save_loc = os.path.join(save_dir, '{}.{}'.format(task, format))
+        plt.savefig(save_loc, format=format, dpi=1200)
 
-if __name__ == '__main__':
-    main()
+def plotSingle(this_in, this_out, corr, save_loc, title, task, use_plotly=False):
+    if use_plotly:
+        plotSingle_plotly(ins, outs, corr, save_loc, title, task)
+    else:
+        plotSingle_plt(ins, outs, corr, save_loc, title, task)
+
+def plotPreds(ins, outs, corrs, plot_info, use_plotly=False):
+    for task in ins.keys():
+        this_in = ins[task]
+        this_out = outs[task]
+        corr = corrs[task]
+        save_loc = plot_info['save_dir']
+        title = '{}, {}'.format(plot_info['title'], task)
+        plotSingle(this_in, this_out, corr, save_loc, title, task, use_plotly)
