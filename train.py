@@ -72,7 +72,7 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
     params : dict
 
     """
-    epoch = training_dict['epoch']
+    num_epochs = training_dict['epoch']
     models = training_dict['models']
     optimizers = training_dict['optims']
 
@@ -83,6 +83,9 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
     step = epoch * len(train_loader)
     total_batches = params['num_epochs'] * len(train_loader)
     best_corrs = {'imr': -1, 'mated': -1}
+
+    epoch = 0
+
     with tqdm(total=num_epochs) as progress_bar:
         epoch += 1
         while epoch != params['num_epochs']:
