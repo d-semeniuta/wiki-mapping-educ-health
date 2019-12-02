@@ -80,7 +80,7 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
         model.train()
 
     device = params['device']
-    step = epoch * len(train_loader)
+    step = num_epochs * len(train_loader)
     total_batches = params['num_epochs'] * len(train_loader)
     best_corrs = {'imr': -1, 'mated': -1}
 
@@ -219,21 +219,24 @@ def train_loop(countries, args, params):
         models = train_model(training_dict, loss_fns, this_train, this_val, writer, params)
 
         print('Model trained in {} results:'.format(train))
-        for val in country_opts:
-            if val == 'all' and train != 'all':
-                val_loader = data_loaders[train]['others']['val']
-            else:
-                val_loader = data_loaders[val]['val']
-            plot_info = {
-                'save_dir' : os.path.join(args.model_dir, 'plots'),
-                'title' : 'Train in {}, Val in {}'.format(train, val)
-            }
-            if not os.path.exists(plot_info['save_dir']):
-                os.makedirs(plot_info['save_dir'])
-            (corrs, losses), (ins, outs) = evaluate_model(models, val_loader, training_dict['loss_fn'])
-            plotPreds(ins, outs, corrs, plot_info)
-            print('\tValidated in {}'.format(val))
-            print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
+        with open('./experiments/{}_train.txt'.format(train), 'w') as log_file:
+            for val in country_opts:
+                if val == 'all' and train != 'all':
+                    val_loader = data_loaders[train]['others']['val']
+                else:
+                    val_loader = data_loaders[val]['val']
+                plot_info = {
+                    'save_dir' : os.path.join(args.model_dir, 'plots'),
+                    'title' : 'Train in {}, Val in {}'.format(train, val)
+                }
+                if not os.path.exists(plot_info['save_dir']):
+                    os.makedirs(plot_info['save_dir'])
+                (corrs, losses), (ins, outs) = evaluate_model(models, val_loader, training_dict['loss_fn'])
+                plotPreds(ins, outs, corrs, plot_info)
+                log_file.write('Validated in {}\n'.format(val))
+                log_file.write('Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
+                print('\tValidated in {}'.format(val))
+                print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
 
 def main():
     args, params = parseArgs()
