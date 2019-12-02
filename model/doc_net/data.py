@@ -1,6 +1,7 @@
 import os
 
 import pandas as pd
+import numpy as np
 
 from torch.utils.data import Dataset
 from torch import from_numpy
@@ -50,6 +51,8 @@ class Doc2VecAfricaDataset(Dataset):
             embedding += temp_list
         dists = list(articles_row[cols[11:]].to_numpy()[0])
         embedding += dists
+        embedding = np.asarray(embedding)
+        embedding = from_numpy(embedding).float()
 
         ed_labels = ['no_education', 'primary_education', 'secondary_education',
                         'higher_education']

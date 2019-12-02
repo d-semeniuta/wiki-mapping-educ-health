@@ -330,6 +330,8 @@ def big_loop(params):
     country_opts = countries + ['all']
     print('Generating data loaders...')
     data_loaders = generate_loaders(countries)
+    if not os.path.exists('./plots'):
+        os.makedirs('./plots')
     for train in country_opts:
         print('Training on {}'.format(train))
         this_train = data_loaders[train]['train']
