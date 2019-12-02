@@ -30,7 +30,7 @@ class Graph2VecAfricaDataset(Dataset):
         self.combined_dhs = self.combined_dhs[(np.abs(stats.zscore(self.combined_dhs.imr)) < 3)]
 
         if graph2vec_feature_path is None:
-            graph2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'one_hop.csv')
+            graph2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'two_hop.csv')
 
         self.graph2vec_embeddings = pd.read_csv(graph2vec_feature_path, header=0)
 

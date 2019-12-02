@@ -5,3 +5,4 @@ __pycache__/
 *.pth
 *.pt
 model/doc2vec
+logs

@@ -15,7 +15,7 @@ african_countries = ['Angola', 'Benin', 'Burundi', 'Egypt', 'Ethiopia', 'Ghana',
 class CombinedAfricaDataset(Dataset):
     def __init__(self, dhs_data_loc=None, cluster_image_dir=None, vec_feature_path=None,
                     use_graph=False, countries=african_countries):
-        if isinstance(countries, str)
+        if isinstance(countries, str):
             countries = [countries]
         elif not isinstance(countries, list):
             Raise(TypeError('Must give either string or list'))
@@ -36,15 +36,22 @@ class CombinedAfricaDataset(Dataset):
         else:
             self.cluster_image_dir = cluster_image_dir
 
+        self.use_graph = use_graph
+
         # wiki embeddings
-        if use_graph:
-            if vec_feature_path is None:
-                vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'graph2vec_feature_set_two_hops.csv')
-            self.embeddings = pd.read_csv(vec_feature_path)
+        if self.use_graph:
+            if graph2vec_feature_path is None:
+                graph2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'two_hop.csv')
+
+            self.graph2vec_embeddings = pd.read_csv(graph2vec_feature_path, header=0)
         else:
-            if vec_feature_path is None:
-                vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'doc2vec_feature_set_two_hops.csv')
-            self.embeddings = pd.read_csv(vec_feature_path)
+            doc2vec_path = os.path.join(proj_head, 'model', 'doc2vec', 'coord_articles_only_doc2vec.model')
+            self.doc2vec = Doc2Vec.load(doc2vec_path)
+
+            if nearest_articles_path is None:
+                nearest_articles_path = os.path.join(proj_head, 'data', 'processed', 'nearest_articles.csv')
+
+            self.nearest_articles = pd.read_csv(nearest_articles_path, sep=";", header = None)
 
     def __len__(self):
         return len(self.combined_dhs)
@@ -55,8 +62,24 @@ class CombinedAfricaDataset(Dataset):
         img_nm = os.path.join(self.cluster_image_dir, '{}.png'.format(cluster_id))
         image = self.transform(imread(img_nm))
 
-        embedding = self.embeddings.loc[self.embeddings['id'] == int(cluster_id)].to_numpy()[1:]
-        embedding = torch.from_numpy(embedding)
+        if self.use_graph:
+            cluster_index = cluster_row['id']
+            embedding = list((self.graph2vec_embeddings.loc[self.graph2vec_embeddings.type == cluster_index]).to_numpy()[0])[1:]
+            embedding = np.asarray(embedding)
+            embedding = from_numpy(embedding).float()
+        else:
+            cluster_index = cluster_row['id']
+            cols = self.nearest_articles.columns
+            articles_row = self.nearest_articles.loc[self.nearest_articles[cols[0]] == cluster_index]
+            titles = list(articles_row[cols[1:11]].to_numpy()[0])
+            embedding = []
+            for title in titles:
+                temp_list = list(self.doc2vec.docvecs[title])
+                embedding += temp_list
+            dists = list(articles_row[cols[11:]].to_numpy()[0])
+            embedding += dists
+            embedding = np.asarray(embedding)
+            embedding = from_numpy(embedding).float()
 
         ed_labels = ['no_education', 'primary_education', 'secondary_education',
                         'higher_education']
