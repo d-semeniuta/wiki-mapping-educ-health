@@ -72,7 +72,7 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
     params : dict
 
     """
-    num_epochs = params['epoch']
+    num_epochs = params['num_epochs']
     models = training_dict['models']
     optimizers = training_dict['optims']
 
