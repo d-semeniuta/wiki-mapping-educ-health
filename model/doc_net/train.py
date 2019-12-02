@@ -177,7 +177,7 @@ def evaluate_model(models, val_loader, loss_fn, plot_preds=False, plot_info=None
     if plot_preds:
         if plot_info is None:
             raise(ValueError('Missing plot params'))
-        # plotPreds(ins, cat_outs, corrs, plot_info)
+        plotPreds(ins, cat_outs, corrs, plot_info)
     return corrs, losses
 
 def plotSingle(ins, outs, corr, save_loc, title, task):

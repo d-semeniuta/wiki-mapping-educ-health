@@ -177,7 +177,7 @@ def evaluate_model(models, val_loader, loss_fn, plot_preds=False, plot_info=None
     if plot_preds:
         if plot_info is None:
             raise(ValueError('Missing plot params'))
-        # plotPreds(ins, cat_outs, corrs, plot_info)
+        plotPreds(ins, cat_outs, corrs, plot_info)
     return corrs, losses
 
 def plotSingle(ins, outs, corr, save_loc, title, task):
@@ -240,6 +240,10 @@ def big_loop(params):
     country_opts = countries + ['all']
     print('Generating data loaders...')
     data_loaders = generate_loaders(countries)
+    if not os.path.exists('./plots'):
+        os.makedirs('./plots')
+    if not os.path.exists('./logs'):
+        os.makedirs('./logs')
     for train in country_opts:
         print('Training on {}'.format(train))
         this_train = data_loaders[train]['train']
@@ -249,21 +253,25 @@ def big_loop(params):
         models = train_model(params, this_train, this_val, writer)
 
         print('Model trained in {} results:'.format(train))
-        for val in country_opts:
-            if val == 'all' and train != 'all':
-                val_loader = data_loaders[train]['others']['val']
-            else:
-                val_loader = data_loaders[val]['val']
-            plot_info = {
-                'save_dir' : './plots/{}/val-{}'.format(params['run_name'].replace('/', '_'), val),
-                'run_name' : '{} val-{}'.format(params['run_name'], val)
-            }
-            if not os.path.exists(plot_info['save_dir']):
-                os.makedirs(plot_info['save_dir'])
-            corrs, losses = evaluate_model(models, val_loader, nn.MSELoss(), plot_preds=True, plot_info=plot_info)
-            print('\tValidated in {}'.format(val))
-            print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
-            print('\tBoth Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['both']['imr'], corrs['both']['mated']))
+        with open('./logs/{}_train.txt'.format(train), 'w') as log_file:
+            for val in country_opts:
+                if val == 'all' and train != 'all':
+                    val_loader = data_loaders[train]['others']['val']
+                else:
+                    val_loader = data_loaders[val]['val']
+                plot_info = {
+                    'save_dir' : './plots/{}/val-{}'.format(params['run_name'].replace('/', '_'), val),
+                    'run_name' : '{} val-{}'.format(params['run_name'], val)
+                }
+                if not os.path.exists(plot_info['save_dir']):
+                    os.makedirs(plot_info['save_dir'])
+                corrs, losses = evaluate_model(models, val_loader, nn.MSELoss(), plot_preds=True, plot_info=plot_info)
+                log_file.write("Validated in {}\n".format(val))
+                log_file.write("Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n".format(corrs['imr'], corrs['mated']))
+                log_file.write("Both Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n".format(corrs['both']['imr'], corrs['both']['mated']))
+                print('\tValidated in {}'.format(val))
+                print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
+                print('\tBoth Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['both']['imr'], corrs['both']['mated']))
 
 def main():
     params = {
