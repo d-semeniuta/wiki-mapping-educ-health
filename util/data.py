@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from torch.utils.data import Dataset, DataLoader, ConcatDataset, Subset
+from torch.utils.data import Dataset, DataLoader, ConcatDataset, Subset, SubsetRandomSampler
 from torchvision import transforms
 from skimage.io import imread
 
@@ -111,13 +111,24 @@ def split_dataset(dataset, batch_size=16, validation_split=0.2):
     val_subset = Subset(dataset, val_indices)
     return train_subset, val_subset
 
-def getDataLoaders(countries, guf_path, vec_feature_path, batch_size, use_graph=False):
+def get_overfit_dataloaders(dataset, subsample_size=8):
+    train_sampler = SubsetRandomSampler(list(range(subsample_size)))
+    train_loader = DataLoader(dataset, batch_size=subsample_size,
+                                        sampler=train_sampler)
+    return train_loader
+
+def getDataLoaders(countries, guf_path, vec_feature_path, batch_size, use_graph=False, overfit=False):
     datasets = {}
     for country in countries:
         country_set = CombinedAfricaDataset(countries=country, cluster_image_dir=guf_path,
                                         use_graph=use_graph, vec_feature_path=vec_feature_path)
         datasets[country] = split_dataset(country_set, batch_size=batch_size)
-
+    if overfit:
+        loader = get_overfit_dataloaders(datasets[countries[0]])
+        return data_loaders[country] = {
+            'train' : loader,
+            'val' : loader
+        }
     data_loaders = {}
     for country in countries:
         train_data, val_data = datasets[country]

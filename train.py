@@ -36,6 +36,7 @@ def parseArgs():
                         help="Optional, name of the file in --model_dir containing weights to reload before \
                         training")  # 'best' or 'last'
     parser.add_argument('--use_graph', action='store_true', help='Use graph embeddings when training, default false')
+    parser.add_argument('--overfit', action='store_true', help='Overfit to a training set')
     parser.add_argument('--vec_feature_path', default=None, help="File containing vec features")
     parser.add_argument('--guf_path', default=None, help="File containing guf images")
 
@@ -240,10 +241,15 @@ def loadModels(args, params):
     return training_dict
 
 def train_loop(args, params):
-    country_opts = params['countries'] + ['all']
+    countries = params['countries']
+    country_opts = countries + ['all']
     print('Generating data loaders...')
     data_loaders = getDataLoaders(countries, args.guf_path, args.vec_feature_path,
-                                    params['batch_size'], use_graph=args.use_graph)
+                                    params['batch_size'], use_graph=args.use_graph,
+                                    overfit=args.overfit)
+    if args.overfit:
+        print('Overfitting...')
+        country_opts = countries[0]
     for train in country_opts:
         print('\nTraining on {}...'.format(train))
         train_loader = data_loaders[train]['train']
