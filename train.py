@@ -152,9 +152,9 @@ def evaluate(models, val_loader, loss_fns, params):
     with torch.no_grad():
         ins, outs = {'imr': [], 'mated': []}, {'imr': [], 'mated': []}
         for batch in val_loader:
-            images, imr, ed_score = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device)
+            images, imr, ed_score, embeddings = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device), batch['emb'].to(device)
             for task, model in models.items():
-                out = model.forward(images)
+                out = model.forward(embeddings, images)
                 outs[task].append(out.detach.squeeze(-1))
             ins['imr'].append(imr)
             ins['mated'].append(ed_score)
