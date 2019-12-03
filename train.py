@@ -99,8 +99,9 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
     best_corrs = {'imr': -1, 'mated': -1}
 
     with tqdm(total=total_batches) as progress_bar:
-        epoch += 1 # one-indexed epochs
-        while epoch <= params['num_epochs']:
+        while epoch < params['num_epochs']:
+            epoch += 1 # one-indexed epochs
+            progress_bar.set_postfix(epoch=epoch)
             for i, batch in enumerate(train_loader):
                 step += 1
                 imr, ed_score = batch['imr'].to(device), batch['ed_score'].to(device)
