@@ -4,8 +4,8 @@ import os
 import random
 import pdb
 
-from model import GUFNet
-from data import GUFAfricaDataset, getDataLoaders
+from .model import GUFNet
+from .data import GUFAfricaDataset, getDataLoaders
 
 import torch
 import torch.nn as nn

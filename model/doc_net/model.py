@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from data import Doc2VecAfricaDataset
+from .data import Doc2VecAfricaDataset
 
 class Doc2VecNet(nn.Module):
     def __init__(self, task, params):

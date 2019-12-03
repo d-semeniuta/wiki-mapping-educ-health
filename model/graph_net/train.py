@@ -1,8 +1,8 @@
 import os
 import random
 
-from model import Graph2VecNet
-from data import Graph2VecAfricaDataset
+from .model import Graph2VecNet
+from .data import Graph2VecAfricaDataset
 
 import torch
 import torch.nn as nn
