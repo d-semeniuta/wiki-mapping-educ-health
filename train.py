@@ -268,7 +268,7 @@ def train_loop(args, params):
                 else:
                     val_loader = data_loaders[val]['val']
                 plot_info = {
-                    'save_dir' : os.path.join(args.model_dir, 'plots'),
+                    'save_dir' : os.path.join(args.model_dir, train, 'plots'),
                     'title' : 'Train in {}, Val in {}'.format(train, val)
                 }
                 if not os.path.exists(plot_info['save_dir']):
