@@ -288,8 +288,8 @@ def evaluate_loop(args, params):
     country_opts = countries + ['all']
     print('Generating data loaders...')
     data_loaders = getDataLoaders(countries, args.guf_path, args.vec_feature_path,
-                                    params['batch_size'], use_graph=args.use_graph,
-                                    overfit=args.overfit)
+                                    params['batch_size'], args.model_dir,
+                                    use_graph=args.use_graph, overfit=args.overfit)
     for train in country_opts:
         print('\nTrained on {}...'.format(train))
         val_loader = data_loaders[train]['val']
@@ -320,7 +320,7 @@ def evaluate_loop(args, params):
 
 
 def main():
-    
+
     args, params = parseArgs()
     # countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
     if args.eval:

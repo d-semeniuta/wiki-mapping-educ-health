@@ -117,7 +117,12 @@ def get_overfit_dataloaders(dataset, subsample_size=8):
                                         sampler=train_sampler)
     return train_loader
 
-def getDataLoaders(countries, guf_path, vec_feature_path, batch_size, use_graph=False, overfit=False):
+def getDataLoaders(countries, guf_path, vec_feature_path, batch_size, model_dir, use_graph=False, overfit=False):
+    data_save_loc = os.path.join(model_dir, 'dataloaders.pth')
+    if os.path.isfile(data_save_loc):
+        print('Getting dataloaders from pickle...')
+        return torch.load(data_save_loc)
+
     datasets = {}
     for country in countries:
         country_set = CombinedAfricaDataset(countries=country, cluster_image_dir=guf_path,
@@ -151,4 +156,6 @@ def getDataLoaders(countries, guf_path, vec_feature_path, batch_size, use_graph=
     data_loaders['all']['train'] = DataLoader(alldata[0], batch_size=batch_size)
     data_loaders['all']['val'] = DataLoader(alldata[1], batch_size=batch_size)
 
+    print('Saving dataloaders to pickle...')
+    torch.save(data_loaders, data_save_loc)
     return data_loaders
