@@ -24,6 +24,9 @@ from tqdm import tqdm
 
 from util.data import getDataLoaders
 from model.combined.model import MultiModalNet
+from model.guf_net.model import GUFNet
+from model.doc_net.model import Doc2VecNet
+from model.graph_net.model import Graph2VecNet
 
 
 def parseArgs():
@@ -34,7 +37,7 @@ def parseArgs():
                         training")  # 'best' or 'last'
     parser.add_argument('--use_graph', action='store_true', help='Use graph embeddings when training, default false')
     parser.add_argument('--vec_feature_path', default=None, help="File containing vec features")
-    parser.add_argument('--guf_path', default=None, help="File containing vec features")
+    parser.add_argument('--guf_path', default=None, help="File containing guf images")
 
     args = parser.parse_args()
     param_loc = os.path.join(args.model_dir, 'params.json')
@@ -53,6 +56,14 @@ def parseArgs():
 #     else:
 #         loss = loss_fn(out[0], imr.unsqueeze(-1)) + loss_fn(out[1], ed_score.unsqueeze(-1))
 #     return loss
+
+def model_forward(model, model_type, embs, imgs):
+    if model_type == 'combined':
+        return model.forward(embs, imgs)
+    elif model_type == 'guf':
+        return model.forward(imgs)
+    else:
+        return model.forward(embs)
 
 def train_model(training_dict, train_loader, val_loader, writer, params):
     """Trains the model for a single epoch
@@ -92,11 +103,13 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
         while epoch <= params['num_epochs']:
             for i, batch in enumerate(train_loader):
                 step += 1
-                images, imr, ed_score, embeddings = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device), batch['emb'].to(device)
+                imr, ed_score = batch['imr'].to(device), batch['ed_score'].to(device)
+                embeddings, images = batch['emb'].to(device), batch['image'].to(device)
                 labels = {'imr': imr, 'mated': ed_score}
                 for task, model in models.items():
                     optimizer = optimizers[task]
-                    out = model.forward(embeddings, images)
+                    # out = model.forward(embeddings, images)
+                    out = model_forward(model, params['model_type'], embeddings, images)
 
                     loss_fn = loss_fns[task]
                     loss = loss_fn(out, labels[task])
@@ -152,9 +165,11 @@ def evaluate(models, val_loader, loss_fns, params):
     with torch.no_grad():
         ins, outs = {'imr': [], 'mated': []}, {'imr': [], 'mated': []}
         for batch in val_loader:
-            images, imr, ed_score, embeddings = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device), batch['emb'].to(device)
+            imr, ed_score = batch['imr'].to(device), batch['ed_score'].to(device)
+            embeddings, images = batch['emb'].to(device), batch['image'].to(device)
             for task, model in models.items():
-                out = model.forward(embeddings, images)
+                # out = model.forward(embeddings, images)
+                out = model_forward(model, params['model_type'], embeddings, images)
                 outs[task].append(out.detach.squeeze(-1))
             ins['imr'].append(imr)
             ins['mated'].append(ed_score)
@@ -172,6 +187,21 @@ def evaluate(models, val_loader, loss_fns, params):
 
     return (corrs, losses), (ins, outs)
 
+def chooseModel(args, params):
+    models = ['combined', 'guf', 'graph', 'doc']
+    model = params['model_type']
+
+    if model == 'combined':
+        return MultiModalNet(params, args.use_graph)
+    elif model == 'guf':
+        return GUFNet(task, params)
+    elif model == 'graph':
+        Graph2VecNet(task, params)
+    elif model == 'doc':
+        Doc2VecNet(task, params)
+    else:
+        raise ValueError('Incorrect Model type')
+
 def loadModels(args, params):
     models = {}
     optims = {}
@@ -179,7 +209,8 @@ def loadModels(args, params):
     loss_fns = {}
     epoch = 0
     for task in ['imr', 'mated']:
-        model = MultiModalNet(params, args.use_graph)
+        # model = MultiModalNet(params, args.use_graph)
+        model = chooseModel(args, params).to(params['device'])
         curr_optim = optim.Adam(
             model.parameters(), lr=params['lr'], betas=(params['b1'], params['b2'])
         )

@@ -1,9 +1,11 @@
+raise RuntimeError('This train loop has been deprecated, if you are sure you want to, comment out the raise')
+
 import os
 import random
 import pdb
 
 from model import GUFNet
-from data import GUFAfricaDataset
+from data import GUFAfricaDataset, getDataLoaders
 
 import torch
 import torch.nn as nn
