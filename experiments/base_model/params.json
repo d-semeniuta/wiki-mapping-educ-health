@@ -1,6 +1,6 @@
 {
   "model_name" : "run0",
-  "model_type" : "combined"
+  "model_type" : "combined",
   "lr" : 8e-4,
   "b1" : 0.9,
   "b2" : 0.999,

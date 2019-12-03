@@ -1,8 +1,8 @@
 import os
 import random
 
-from model import Doc2VecNet
-from data import Doc2VecAfricaDataset
+from .model import Doc2VecNet
+from .data import Doc2VecAfricaDataset
 
 import torch
 import torch.nn as nn
