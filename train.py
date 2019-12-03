@@ -123,7 +123,7 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
                 progress_bar.update(1)
             # check evaluation step
             if epoch % params['eval_every'] == 0:
-                (corrs, losses), _ = evaluate(models, val_loader, loss_fns, params, writer=writer)
+                (corrs, losses), _ = evaluate(models, val_loader, loss_fns, params)
                 for task in corrs.keys():
                     writer.add_scalar('val/{}/r2'.format(task), corrs[task], epoch)
                     writer.add_scalar('val/{}/loss'.format(task), losses[task], epoch)
@@ -177,14 +177,14 @@ def evaluate(models, val_loader, loss_fns, params):
 
         for task in outs.keys():
             # cat into single array
-            ins[task] = torch.cat(ins[task]).numpy()
-            outs[task] = torch.cat(outs[task]).numpy()
+            ins[task] = torch.cat(ins[task])
+            outs[task] = torch.cat(outs[task])
         corrs = {}
         losses = {}
         for task in outs.keys():
-            corrs[task] = pearsonr(ins[task], outs[task])[0]
-            losses[task] = get_loss[task](torch.tensor(ins[task].to(device)),
-                torch.tensor(outs[task].to(device))).item()
+            corrs[task] = pearsonr(ins[task].numpy(), outs[task].numpy())[0]
+            loss_fn = loss_fns[task]
+            losses[task] = loss_fn(ins[task], outs[task]).item()
 
     return (corrs, losses), (ins, outs)
 
