@@ -242,7 +242,7 @@ def loadModels(args, params):
 def train_loop(args, params):
     country_opts = params['countries'] + ['all']
     print('Generating data loaders...')
-    data_loaders = getDataLoaders(countries, args.guf_path, args.vec_feature_path,
+    data_loaders = getDataLoaders(params['countries'], args.guf_path, args.vec_feature_path,
                                     params['batch_size'], use_graph=args.use_graph)
     for train in country_opts:
         print('\nTraining on {}...'.format(train))
@@ -269,7 +269,7 @@ def train_loop(args, params):
                 }
                 if not os.path.exists(plot_info['save_dir']):
                     os.makedirs(plot_info['save_dir'])
-                (corrs, losses), (ins, outs) = evaluate_model(models, val_loader, training_dict['loss_fn'])
+                (corrs, losses), (ins, outs) = evaluate(models, val_loader, training_dict['loss_fns'])
                 plotPreds(ins, outs, corrs, plot_info)
                 log_file.write('Validated in {}\n'.format(val))
                 log_file.write('Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
