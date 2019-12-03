@@ -9,8 +9,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from data import GUFAfricaDataset
-from layers.guf_conv import GUFConv
+from .data import GUFAfricaDataset
+from .layers.guf_conv import GUFConv
 
 class GUFNet(nn.Module):
     def __init__(self, task, params):
