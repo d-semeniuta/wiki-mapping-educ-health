@@ -1,5 +1,3 @@
-runs*/
 tb/
 plots/
-checkpoints/
-overfitting/
+*.txt

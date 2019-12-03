@@ -6,6 +6,7 @@ import os
 import numpy as np
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
 
 REPO_HEAD = os.path.abspath('../')
 
@@ -115,59 +116,59 @@ def getCoordinateCentroid(coords):
 
     return np.degrees(centroid_lat), np.degrees(centroid_lon)
 
-def produce_geo_scatter_plot(df, title, img_name, countries=None, color_col=None,
-                    size_col=None, out_dir=OUT_DIR, img_format='svg'):
-    """ Produce geo plot of desired data
-    To install requirements:
-        conda install -c plotly plotly-orca psutil requests
-
-    Parameters
-    ----------
-    df : Pandas.DataFrame
-        DataFrame of desired data to plot. Must include lat and lon data
-    title : string
-        Title of plot
-    img_name : string
-        Filename to give image
-    countries : string or list of strings
-        countries which to plot data of
-    color_col : string
-        Column which decides color of markers
-    size_col : string
-        Column which decides size of markers
-    out_dir : string
-        Path where to save image
-    img_format : string
-        File extension of image
-    """
-    if color_col is None and size_col is None:
-        raise(TypeError('Require at least one column argument'))
-    marker_color = df[color_col] if color_col is not None else 1
-    marker_size = df[size_col] if size_col is not None else 2
-    if countries is not None:
-        df = df.loc[df.country==countries]
-    if img_format not in ['png', 'jpeg', 'webp', 'svg', 'pdf']:
-        raise(ValueError('Unsupported file extension'))
-
-    fig = go.Figure(data=go.Scattergeo(
-            lon = df['lon'],
-            lat = df['lat'],
-            mode = 'markers',
-            marker = dict(
-                size = marker_size,
-                reversescale = True,
-                autocolorscale = False,
-                colorscale = 'Blues',
-                cmin = 0,
-                color = marker_color,
-                cmax = marker_color.max(),
-                colorbar_title=color_col
-            )))
-    fig.update_layout(
-            title = title,
-            geo_scope = None
-        )
-    fig.write_image(os.path.join(out_dir, '{}.{}'.format(img_name, img_format)))
+# def produce_geo_scatter_plot(df, title, img_name, countries=None, color_col=None,
+#                     size_col=None, out_dir=None, img_format='svg'):
+#     """ Produce geo plot of desired data
+#     To install requirements:
+#         conda install -c plotly plotly-orca psutil requests
+#
+#     Parameters
+#     ----------
+#     df : Pandas.DataFrame
+#         DataFrame of desired data to plot. Must include lat and lon data
+#     title : string
+#         Title of plot
+#     img_name : string
+#         Filename to give image
+#     countries : string or list of strings
+#         countries which to plot data of
+#     color_col : string
+#         Column which decides color of markers
+#     size_col : string
+#         Column which decides size of markers
+#     out_dir : string
+#         Path where to save image
+#     img_format : string
+#         File extension of image
+#     """
+#     if color_col is None and size_col is None:
+#         raise(TypeError('Require at least one column argument'))
+#     marker_color = df[color_col] if color_col is not None else 1
+#     marker_size = df[size_col] if size_col is not None else 2
+#     if countries is not None:
+#         df = df.loc[df.country==countries]
+#     if img_format not in ['png', 'jpeg', 'webp', 'svg', 'pdf']:
+#         raise(ValueError('Unsupported file extension'))
+#
+#     fig = go.Figure(data=go.Scattergeo(
+#             lon = df['lon'],
+#             lat = df['lat'],
+#             mode = 'markers',
+#             marker = dict(
+#                 size = marker_size,
+#                 reversescale = True,
+#                 autocolorscale = False,
+#                 colorscale = 'Blues',
+#                 cmin = 0,
+#                 color = marker_color,
+#                 cmax = marker_color.max(),
+#                 colorbar_title=color_col
+#             )))
+#     fig.update_layout(
+#             title = title,
+#             geo_scope = None
+#         )
+#     fig.write_image(os.path.join(out_dir, '{}.{}'.format(img_name, img_format)))
 
 def plotSingle_plotly(ins, outs, corr, save_dir, title, task):
     trace1 = go.Scatter(
@@ -209,10 +210,12 @@ def plotSingle_plt(ins, outs, corr, save_dir, title, task):
     transform = ax.transAxes
     line.set_transform(transform)
     ax.add_line(line)
-    ax.text(left, top, 'Corr: {:.3f}'.format(corr),
+    ax.text(0.05, 0.95, 'Corr: {:.3f}'.format(corr),
         horizontalalignment='left',
         verticalalignment='top',
         transform=ax.transAxes)
+    ax.set_xlim(0,1)
+    ax.set_ylim(0,1)
     plt.title(title)
     plt.xlabel('Ground Truth')
     plt.ylabel('Predictions')
@@ -221,17 +224,20 @@ def plotSingle_plt(ins, outs, corr, save_dir, title, task):
         save_loc = os.path.join(save_dir, '{}.{}'.format(task, format))
         plt.savefig(save_loc, format=format, dpi=1200)
 
-def plotSingle(this_in, this_out, corr, save_loc, title, task, use_plotly=False):
+def plotSingle(ins, outs, corr, save_loc, title, task, use_plotly=False):
     if use_plotly:
         plotSingle_plotly(ins, outs, corr, save_loc, title, task)
     else:
         plotSingle_plt(ins, outs, corr, save_loc, title, task)
 
 def plotPreds(ins, outs, corrs, plot_info, use_plotly=False):
+    title_task = {
+        'imr': 'IMR', 'mated': 'Maternal Education'
+    }
     for task in ins.keys():
         this_in = ins[task]
         this_out = outs[task]
         corr = corrs[task]
         save_dir = plot_info['save_dir']
-        title = '{}, {}'.format(plot_info['title'], task)
+        title = '{}, {}'.format(plot_info['title'], title_task[task])
         plotSingle(this_in, this_out, corr, save_dir, title, task, use_plotly)

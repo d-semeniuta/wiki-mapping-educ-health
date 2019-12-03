@@ -41,9 +41,9 @@ class GUFNet(nn.Module):
         x = self.conv_net(x)
 
         if self.sigmoid_out and self.task == 'mated':
-            return 3 * F.sigmoid(self.out_layers(x))
+            return 3 * torch.sigmoid(self.out_layers(x))
         elif self.sigmoid_out:
-            return F.sigmoid(self.out_layers(x))
+            return torch.sigmoid(self.out_layers(x))
         else:
             return self.out_layers(x)
 

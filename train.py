@@ -59,7 +59,7 @@ def parseArgs():
 #         loss = loss_fn(out[0], imr.unsqueeze(-1)) + loss_fn(out[1], ed_score.unsqueeze(-1))
 #     return loss
 
-def model_forward(model, model_type, embs, imgs):
+def model_forward(model, model_type, *, embs, imgs):
     if model_type == 'combined':
         return model.forward(embs, imgs)
     elif model_type == 'guf':
@@ -103,7 +103,6 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
     with tqdm(total=total_batches) as progress_bar:
         while epoch < params['num_epochs']:
             epoch += 1 # one-indexed epochs
-            progress_bar.set_postfix(epoch=epoch)
             for i, batch in enumerate(train_loader):
                 step += 1
                 imr, ed_score = batch['imr'].to(device), batch['ed_score'].to(device)
@@ -111,11 +110,10 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
                 labels = {'imr': imr, 'mated': ed_score}
                 for task, model in models.items():
                     optimizer = optimizers[task]
-                    # out = model.forward(embeddings, images)
-                    out = model_forward(model, params['model_type'], embeddings, images)
+                    out = model_forward(model, params['model_type'], embs=embeddings, imgs=images)
 
                     loss_fn = loss_fns[task]
-                    loss = loss_fn(out, labels[task])
+                    loss = loss_fn(out, labels[task].unsqueeze(-1))
 
                     optimizer.zero_grad()
                     loss.backward()
@@ -138,6 +136,7 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
                     r2_mated=corrs['mated'],
                     loss_imr=losses['imr'],
                     loss_mated=losses['mated'],
+                    epoch=epoch
                 )
                 # save models
                 for task, model in models.items():
@@ -171,8 +170,7 @@ def evaluate(models, val_loader, loss_fns, params):
             imr, ed_score = batch['imr'].to(device), batch['ed_score'].to(device)
             embeddings, images = batch['emb'].to(device), batch['image'].to(device)
             for task, model in models.items():
-                # out = model.forward(embeddings, images)
-                out = model_forward(model, params['model_type'], embeddings, images)
+                out = model_forward(model, params['model_type'], embs=embeddings, imgs=images)
                 outs[task].append(out.detach().squeeze(-1))
             ins['imr'].append(imr)
             ins['mated'].append(ed_score)
@@ -250,7 +248,7 @@ def train_loop(args, params):
                                     overfit=args.overfit)
     if args.overfit:
         print('Overfitting...')
-        country_opts = countries[0]
+        country_opts = [countries[0]]
     for train in country_opts:
         print('\nTraining on {}...'.format(train))
         train_loader = data_loaders[train]['train']
@@ -259,7 +257,6 @@ def train_loop(args, params):
         writer = SummaryWriter(writer_dir)
         training_dict = loadModels(args, params)
         params['train_country'] = train
-        # loss_fns = training_dict['loss_fns']
         models = train_model(training_dict, train_loader, val_loader, writer, params)
 
         print('Model trained in {} results:'.format(train))
