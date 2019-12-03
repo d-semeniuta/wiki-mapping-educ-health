@@ -232,6 +232,6 @@ def plotPreds(ins, outs, corrs, plot_info, use_plotly=False):
         this_in = ins[task]
         this_out = outs[task]
         corr = corrs[task]
-        save_loc = plot_info['save_dir']
+        save_dir = plot_info['save_dir']
         title = '{}, {}'.format(plot_info['title'], task)
-        plotSingle(this_in, this_out, corr, save_loc, title, task, use_plotly)
+        plotSingle(this_in, this_out, corr, save_dir, title, task, use_plotly)
