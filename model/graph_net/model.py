@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from data import Graph2VecAfricaDataset
+from .data import Graph2VecAfricaDataset
 
 class Graph2VecNet(nn.Module):
     def __init__(self, task, params):
