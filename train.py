@@ -239,61 +239,6 @@ def loadModels(args, params):
     }
     return training_dict
 
-def plotSingle(ins, outs, corr, save_loc, title, task):
-    trace1 = go.Scatter(
-        x=ins,
-        y=outs,
-        mode='markers',
-        name='Predictions'
-    )
-    slope, intercept, r_value, p_value, std_err = linregress(ins,outs)
-    max_val = 3 if task == 'mated' else 1
-    xi = np.arange(0,max_val,0.01)
-    line = slope*xi+intercept
-
-    trace2 = go.Scatter(
-        x=xi,
-        y=line,
-        mode='lines',
-        name='Fit'
-    )
-
-    annotation = go.layout.Annotation(
-        x=0.05,
-        y=max_val-0.05,
-        text='$R^2 = {:.3f}$'.format(corr),
-        showarrow=False,
-    )
-    layout = go.Layout(
-        title = title,
-        xaxis_title = 'Ground Truth',
-        yaxis_title = 'Predictions',
-        annotations=[annotation]
-    )
-
-    fig=go.Figure(data=[trace1,trace2], layout=layout)
-
-    fig.write_image(save_loc)
-
-def plotPreds(ins, outs, corrs, plot_info):
-    tasks = outs.keys()
-    for task in tasks:
-        if task == 'both':
-            for inner_task in ['imr', 'mated']:
-                this_in = ins[inner_task]
-                this_out = outs[task][inner_task]
-                corr = corrs[task][inner_task]
-                save_loc = '{}/{}-{}.png'.format(plot_info['save_dir'], task, inner_task)
-                title = '{} {} {}'.format(plot_info['run_name'], task, inner_task)
-                plotSingle(this_in, this_out, corr, save_loc, title, inner_task)
-        else:
-            this_in = ins[task]
-            this_out = outs[task]
-            corr = corrs[task]
-            save_loc = '{}/{}.png'.format(plot_info['save_dir'], task)
-            title = '{} {}'.format(plot_info['run_name'], task)
-            plotSingle(this_in, this_out, corr, save_loc, title, task)
-
 def train_loop(args, params):
     countries = params['countries']
     country_opts = countries + ['all']
