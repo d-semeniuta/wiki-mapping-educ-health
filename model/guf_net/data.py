@@ -30,9 +30,7 @@ class GUFAfricaDataset(Dataset):
                                         'ClusterLevelCombined_5yrIMR_MatEd.csv')
         combined_dhs = pd.read_csv(dhs_data_loc)
 
-        self.combined_dhs = combined_dhs[combined_dhs['country'].isin(countries)]
-        self.combined_dhs = self.combined_dhs[(np.abs(stats.zscore(self.combined_dhs.imr)) < 3)]
-        
+        self.combined_dhs = combined_dhs[combined_dhs['country'].isin(countries)]        
 
         if cluster_image_dir is None:
             self.cluster_image_dir = os.path.join(proj_head, 'data', 'raw',
