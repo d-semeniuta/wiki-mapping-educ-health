@@ -269,7 +269,7 @@ def train_loop(args, params):
                 }
                 if not os.path.exists(plot_info['save_dir']):
                     os.makedirs(plot_info['save_dir'])
-                (corrs, losses), (ins, outs) = evaluate(models, val_loader, training_dict['loss_fns'])
+                (corrs, losses), (ins, outs) = evaluate(models, val_loader, training_dict['loss_fns'], params)
                 plotPreds(ins, outs, corrs, plot_info)
                 log_file.write('Validated in {}\n'.format(val))
                 log_file.write('Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
