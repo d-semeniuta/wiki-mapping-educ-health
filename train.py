@@ -40,6 +40,7 @@ def parseArgs():
     parser.add_argument('--overfit', action='store_true', help='Overfit to a training set')
     parser.add_argument('--vec_feature_path', default=None, help="File containing vec features")
     parser.add_argument('--guf_path', default=None, help="File containing guf images")
+    parser.add_argument('--eval', action='store_true', help='Evaluate the model')
 
     args = parser.parse_args()
     param_loc = os.path.join(args.model_dir, 'params.json')
@@ -217,12 +218,12 @@ def loadModels(train_country, args, params):
         )
         best_corr = -1
         if args.restore_file is not None:
-            if args.restore_file is not 'last':
+            if args.restore_file != 'last':
                 raise(ValueError("Can't load from best with current training setup"))
             cp_loc = os.path.join(args.model_dir, train_country, '{}.last.pth'.format(task))
             cp = torch.load(cp_loc)
             model.load_state_dict(cp['state_dict'])
-            optim.load_state_dict(cp['optim_dict'])
+            curr_optim.load_state_dict(cp['optim_dict'])
             best_corr = cp['best_corr']
             epoch = cp['epoch']
         models[task] = model
@@ -255,7 +256,7 @@ def train_loop(args, params):
         val_loader = data_loaders[train]['val']
         writer_dir = os.path.join(args.model_dir, 'tb', train)
         writer = SummaryWriter(writer_dir)
-        training_dict = loadModels(args, params)
+        training_dict = loadModels(train, args, params)
         params['train_country'] = train
         models = train_model(training_dict, train_loader, val_loader, writer, params)
 
@@ -280,10 +281,52 @@ def train_loop(args, params):
                 print('\tValidated in {}'.format(val))
                 print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
 
+def evaluate_loop(args, params):
+    if args.restore_file is None:
+        raise ValueError('Need to load model to evaluate')
+    countries = params['countries']
+    country_opts = countries + ['all']
+    print('Generating data loaders...')
+    data_loaders = getDataLoaders(countries, args.guf_path, args.vec_feature_path,
+                                    params['batch_size'], use_graph=args.use_graph,
+                                    overfit=args.overfit)
+    for train in country_opts:
+        print('\nTrained on {}...'.format(train))
+        val_loader = data_loaders[train]['val']
+        training_dict = loadModels(train, args, params)
+        models = training_dict['models']
+        params['train_country'] = train
+        print('Model trained in {} results:'.format(train))
+        log_file_loc = os.path.join(args.model_dir, '{}_eval.txt'.format(train))
+        with open(log_file_loc, 'w') as log_file:
+            for val in country_opts:
+                if val == 'all' and train != 'all':
+                    val_loader = data_loaders[train]['others']['val']
+                else:
+                    val_loader = data_loaders[val]['val']
+                plot_info = {
+                    'save_dir' : os.path.join(args.model_dir, train, 'plots', val),
+                    'title' : 'Train in {}, Val in {}'.format(train, val)
+                }
+                if not os.path.exists(plot_info['save_dir']):
+                    os.makedirs(plot_info['save_dir'])
+                (corrs, losses), (ins, outs) = evaluate(models, val_loader, training_dict['loss_fns'], params)
+                plotPreds(ins, outs, corrs, plot_info)
+                log_file.write('Validated in {}\n'.format(val))
+                log_file.write('Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
+                print('\tValidated in {}'.format(val))
+                print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
+
+
+
 def main():
+    
     args, params = parseArgs()
     # countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
-    train_loop(args, params)
+    if args.eval:
+        evaluate_loop(args, params)
+    else:
+        train_loop(args, params)
 
 
 if __name__ == '__main__':

@@ -224,6 +224,7 @@ def plotSingle_plt(ins, outs, corr, save_dir, title, task):
         # save in multiple formats, just to be safe
         save_loc = os.path.join(save_dir, '{}.{}'.format(task, format))
         plt.savefig(save_loc, format=format, dpi=1200)
+    plt.close()
 
 def plotSingle(ins, outs, corr, save_loc, title, task, use_plotly=False):
     if use_plotly:
