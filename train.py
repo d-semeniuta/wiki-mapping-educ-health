@@ -188,7 +188,7 @@ def evaluate(models, val_loader, loss_fns, params):
 
     return (corrs, losses), (ins, outs)
 
-def chooseModel(args, params):
+def chooseModel(task, args, params):
     models = ['combined', 'guf', 'graph', 'doc']
     model = params['model_type']
 
@@ -211,7 +211,7 @@ def loadModels(args, params):
     epoch = 0
     for task in ['imr', 'mated']:
         # model = MultiModalNet(params, args.use_graph)
-        model = chooseModel(args, params).to(params['device'])
+        model = chooseModel(task, args, params).to(params['device'])
         curr_optim = optim.Adam(
             model.parameters(), lr=params['lr'], betas=(params['b1'], params['b2'])
         )
