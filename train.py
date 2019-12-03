@@ -171,7 +171,7 @@ def evaluate(models, val_loader, loss_fns, params):
             for task, model in models.items():
                 # out = model.forward(embeddings, images)
                 out = model_forward(model, params['model_type'], embeddings, images)
-                outs[task].append(out.detach.squeeze(-1))
+                outs[task].append(out.detach().squeeze(-1))
             ins['imr'].append(imr)
             ins['mated'].append(ed_score)
 
