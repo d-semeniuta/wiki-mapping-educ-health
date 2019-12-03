@@ -239,8 +239,8 @@ def loadModels(args, params):
     }
     return training_dict
 
-def train_loop(countries, args, params):
-    country_opts = countries + ['all']
+def train_loop(args, params):
+    country_opts = params['countries'] + ['all']
     print('Generating data loaders...')
     data_loaders = getDataLoaders(countries, args.guf_path, args.vec_feature_path,
                                     params['batch_size'], use_graph=args.use_graph)
@@ -277,8 +277,8 @@ def train_loop(countries, args, params):
 
 def main():
     args, params = parseArgs()
-    countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
-    train_loop(countries, args, params)
+    # countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
+    train_loop(args, params)
 
 
 if __name__ == '__main__':
