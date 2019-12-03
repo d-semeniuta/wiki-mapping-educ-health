@@ -125,10 +125,12 @@ def getDataLoaders(countries, guf_path, vec_feature_path, batch_size, use_graph=
         datasets[country] = split_dataset(country_set, batch_size=batch_size)
     if overfit:
         loader = get_overfit_dataloaders(datasets[countries[0]])
-        return data_loaders[country] = {
+        data_loaders = {}
+        data_loaders[country] = {
             'train' : loader,
             'val' : loader
         }
+        return data_loaders
     data_loaders = {}
     for country in countries:
         train_data, val_data = datasets[country]
