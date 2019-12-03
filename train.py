@@ -44,17 +44,17 @@ def parseArgs():
     params['model_dir'] = args.model_dir
     return args, params
 
-def get_loss(out, task, labels, loss_fn):
-    imr, ed_score = labels
-    if task == 'imr':
-        loss = loss_fn(out, imr.unsqueeze(-1))
-    elif task == 'mated':
-        loss = loss_fn(out, ed_score.unsqueeze(-1))
-    else:
-        loss = loss_fn(out[0], imr.unsqueeze(-1)) + loss_fn(out[1], ed_score.unsqueeze(-1))
-    return loss
+# def get_loss(out, task, labels, loss_fn):
+#     imr, ed_score = labels
+#     if task == 'imr':
+#         loss = loss_fn(out, imr.unsqueeze(-1))
+#     elif task == 'mated':
+#         loss = loss_fn(out, ed_score.unsqueeze(-1))
+#     else:
+#         loss = loss_fn(out[0], imr.unsqueeze(-1)) + loss_fn(out[1], ed_score.unsqueeze(-1))
+#     return loss
 
-def train_model(training_dict, loss_fns, train_loader, val_loader, writer, params):
+def train_model(training_dict, train_loader, val_loader, writer, params):
     """Trains the model for a single epoch
 
     Parameters
@@ -72,9 +72,12 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
     params : dict
 
     """
+    # unwrap training dict
     num_epochs = params['num_epochs']
     models = training_dict['models']
     optimizers = training_dict['optims']
+    loss_fns = training_dict['loss_fns']
+    epoch = training_dict['epoch']  # in case loading from checkpoint
 
     for model in models.values():
         model.train()
@@ -84,11 +87,9 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
     total_batches = params['num_epochs'] * len(train_loader)
     best_corrs = {'imr': -1, 'mated': -1}
 
-    epoch = 0
-
     with tqdm(total=total_batches) as progress_bar:
-        epoch += 1
-        while epoch < params['num_epochs']:
+        epoch += 1 # one-indexed epochs
+        while epoch <= params['num_epochs']:
             for i, batch in enumerate(train_loader):
                 step += 1
                 images, imr, ed_score, embeddings = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device), batch['emb'].to(device)
@@ -96,48 +97,52 @@ def train_model(training_dict, loss_fns, train_loader, val_loader, writer, param
                 for task, model in models.items():
                     optimizer = optimizers[task]
                     out = model.forward(embeddings, images)
-                    loss = get_loss(out, task, (imr, ed_score), loss_fns[task])
+
+                    loss_fn = loss_fns[task]
+                    loss = loss_fn(out, labels[task])
+
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
+
                     writer.add_scalar('train/{}/loss'.format(task), loss.item(), step)
                 progress_bar.update(1)
-        # check evaluation step
-        if epoch % params['eval_every'] == 0:
-            (corrs, losses), _ = evaluate(models, val_loader, loss_fns, params, writer=writer)
-            for task in corrs.keys():
-                writer.add_scalar('val/{}/r2'.format(task), corrs[task], epoch)
-                writer.add_scalar('val/{}/loss'.format(task), losses[task], epoch)
+            # check evaluation step
+            if epoch % params['eval_every'] == 0:
+                (corrs, losses), _ = evaluate(models, val_loader, loss_fns, params, writer=writer)
+                for task in corrs.keys():
+                    writer.add_scalar('val/{}/r2'.format(task), corrs[task], epoch)
+                    writer.add_scalar('val/{}/loss'.format(task), losses[task], epoch)
 
-            for model in models.values():
-                model.train()
+                for model in models.values():
+                    model.train()
 
-            progress_bar.set_postfix(
-                r2_imr=corrs['imr'],
-                r2_mated=corrs['mated'],
-                loss_imr=losses['imr'],
-                loss_mated=losses['mated'],
-            )
-            # save models
-            for task, model in models.items():
-                out_dir = os.path.join(params['model_dir'], params['country'])
-                if not os.path.exists(out_dir):
-                    os.mkdir(out_dir)
-                dict_to_save = {
-                    'epoch': epoch,
-                    'state_dict': model.state_dict(),
-                    'optim_dict': optimizers[task].state_dict(),
-                    'best_corr': best_corrs[task],
-                    'task': task
-                }
-                if corrs[task] > best_corrs[task]:
-                    # best by correlation
-                    best_corrs[task] = corrs[task]
-                    dict_to_save['best_corr'] = best_corrs[task]
-                    best_out = os.path.join(out_dir, '{}.best.pth'.format(task))
-                    torch.save(dict_to_save, best_out)
-                last_out = os.path.join(out_dir, '{}.last.pth'.format(task))
-                torch.save(dict_to_save, last_out)
+                progress_bar.set_postfix(
+                    r2_imr=corrs['imr'],
+                    r2_mated=corrs['mated'],
+                    loss_imr=losses['imr'],
+                    loss_mated=losses['mated'],
+                )
+                # save models
+                for task, model in models.items():
+                    out_dir = os.path.join(params['model_dir'], params['country'])
+                    if not os.path.exists(out_dir):
+                        os.mkdir(out_dir)
+                    dict_to_save = {
+                        'epoch': epoch,
+                        'state_dict': model.state_dict(),
+                        'optim_dict': optimizers[task].state_dict(),
+                        'best_corr': best_corrs[task],
+                        'task': task
+                    }
+                    if corrs[task] > best_corrs[task]:
+                        # best by correlation
+                        best_corrs[task] = corrs[task]
+                        dict_to_save['best_corr'] = best_corrs[task]
+                        best_out = os.path.join(out_dir, '{}.best.pth'.format(task))
+                        torch.save(dict_to_save, best_out)
+                    last_out = os.path.join(out_dir, '{}.last.pth'.format(task))
+                    torch.save(dict_to_save, last_out)
     return models
 
 def evaluate(models, val_loader, loss_fns, params):
@@ -211,15 +216,15 @@ def train_loop(countries, args, params):
         print('\nTraining on {}...'.format(train))
         this_train = data_loaders[train]['train']
         this_val = data_loaders[train]['val']
-        # params['run_name'] = 'run0/train-{}'.format(train)
         writer_dir = os.path.join(args.model_dir, 'tb', train)
         writer = SummaryWriter(writer_dir)
         training_dict = loadModels(args, params)
-        loss_fns = training_dict['loss_fns']
-        models = train_model(training_dict, loss_fns, this_train, this_val, writer, params)
+        # loss_fns = training_dict['loss_fns']
+        models = train_model(training_dict, this_train, this_val, writer, params)
 
         print('Model trained in {} results:'.format(train))
-        with open('./experiments/{}_train.txt'.format(train), 'w') as log_file:
+        log_file_loc = os.path.join(args.model_dir, '{}_train.txt'.format(train))
+        with open(log_file_loc, 'w') as log_file:
             for val in country_opts:
                 if val == 'all' and train != 'all':
                     val_loader = data_loaders[train]['others']['val']
