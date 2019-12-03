@@ -23,6 +23,7 @@ import plotly.graph_objects as go
 from tqdm import tqdm
 
 from util.data import getDataLoaders
+from util.utils import plotPreds
 from model.combined.model import MultiModalNet
 from model.guf_net.model import GUFNet
 from model.doc_net.model import Doc2VecNet
@@ -275,7 +276,7 @@ def train_loop(args, params):
                 }
                 if not os.path.exists(plot_info['save_dir']):
                     os.makedirs(plot_info['save_dir'])
-                (corrs, losses), (ins, outs) = evaluate_model(models, val_loader, training_dict['loss_fn'])
+                (corrs, losses), (ins, outs) = evaluate(models, val_loader, training_dict['loss_fns'], params)
                 plotPreds(ins, outs, corrs, plot_info)
                 log_file.write('Validated in {}\n'.format(val))
                 log_file.write('Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))

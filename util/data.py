@@ -22,9 +22,9 @@ class CombinedAfricaDataset(Dataset):
         if isinstance(countries, str):
             countries = [countries]
         elif not isinstance(countries, list):
-            Raise(TypeError('Must give either string or list'))
+            raise(TypeError('Must give either string or list'))
         if len(set(countries) - set(african_countries)) > 0:
-            Raise(ValueError('Countries out of dataset'))
+            raise(ValueError('Countries out of dataset'))
 
         proj_head = os.path.abspath('./')
 
