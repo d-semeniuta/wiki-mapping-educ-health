@@ -26,8 +26,7 @@ class Doc2VecAfricaDataset(Dataset):
             dhs_data_loc = os.path.join(proj_head, 'data', 'processed', 'ClusterLevelCombined_5yrIMR_MatEd.csv')
 
         combined_dhs = pd.read_csv(dhs_data_loc)
-        self.combined_dhs = combined_dhs[combined_dhs['country'].isin(countries)]
-        self.combined_dhs = self.combined_dhs[(np.abs(stats.zscore(self.combined_dhs.imr)) < 3)]
+        self.combined_dhs = combined_dhs[combined_dhs['country'].isin(countries)]        
 
         doc2vec_path = os.path.join(proj_head, 'model', 'doc2vec', 'coord_articles_only_doc2vec.model')
         self.doc2vec = Doc2Vec.load(doc2vec_path)
