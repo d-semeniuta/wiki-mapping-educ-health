@@ -5,13 +5,26 @@ Train the model
 import argparse
 import os
 import json
+import random
 
 import torch
+import torch.optim as optim
+import torch.utils.data as data
+import torch.nn as nn
 
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, linregress
+
+from tensorboardX import SummaryWriter
+
+import numpy as np
+
+import plotly.graph_objects as go
+
+from tqdm import tqdm
 
 from util.data import getDataLoaders
 from model.combined.model import MultiModalNet
+
 
 def parseArgs():
     parser = argparse.ArgumentParser()
@@ -25,13 +38,23 @@ def parseArgs():
 
     args = parser.parse_args()
     param_loc = os.path.join(args.model_dir, 'params.json')
-    params = json.load(param_loc)
+    with open(param_loc) as json_file:
+        params = json.load(json_file)
     params['device'] =  torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     params['model_dir'] = args.model_dir
     return args, params
 
+def get_loss(out, task, labels, loss_fn):
+    imr, ed_score = labels
+    if task == 'imr':
+        loss = loss_fn(out, imr.unsqueeze(-1))
+    elif task == 'mated':
+        loss = loss_fn(out, ed_score.unsqueeze(-1))
+    else:
+        loss = loss_fn(out[0], imr.unsqueeze(-1)) + loss_fn(out[1], ed_score.unsqueeze(-1))
+    return loss
 
-def train(training_dict, loss_fns, train_loader, val_loader, writer, params):
+def train_model(training_dict, loss_fns, train_loader, val_loader, writer, params):
     """Trains the model for a single epoch
 
     Parameters
@@ -49,23 +72,31 @@ def train(training_dict, loss_fns, train_loader, val_loader, writer, params):
     params : dict
 
     """
+    num_epochs = params['num_epochs']
+    models = training_dict['models']
+    optimizers = training_dict['optims']
+
     for model in models.values():
         model.train()
+
     device = params['device']
-    step = epoch * len(train_loader)
+    step = num_epochs * len(train_loader)
     total_batches = params['num_epochs'] * len(train_loader)
     best_corrs = {'imr': -1, 'mated': -1}
+
+    epoch = 0
+
     with tqdm(total=total_batches) as progress_bar:
         epoch += 1
-        while epoch != params['num_epochs']:
+        while epoch < params['num_epochs']:
             for i, batch in enumerate(train_loader):
                 step += 1
-                images, imr, ed_score = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device)
+                images, imr, ed_score, embeddings = batch['image'].to(device), batch['imr'].to(device), batch['ed_score'].to(device), batch['emb'].to(device)
                 labels = {'imr': imr, 'mated': ed_score}
                 for task, model in models.items():
                     optimizer = optimizers[task]
-                    out = model.forward(images)
-                    loss = loss_fn(out, labels[task])
+                    out = model.forward(embeddings, images)
+                    loss = get_loss(out, task, (imr, ed_score), loss_fns[task])
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
@@ -74,7 +105,7 @@ def train(training_dict, loss_fns, train_loader, val_loader, writer, params):
         # check evaluation step
         if epoch % params['eval_every'] == 0:
             (corrs, losses), _ = evaluate(models, val_loader, loss_fns, params, writer=writer)
-            for task in in corrs.keys():
+            for task in corrs.keys():
                 writer.add_scalar('val/{}/r2'.format(task), corrs[task], epoch)
                 writer.add_scalar('val/{}/loss'.format(task), losses[task], epoch)
 
@@ -144,7 +175,7 @@ def loadModels(args, params):
     epoch = 0
     for task in ['imr', 'mated']:
         model = MultiModalNet(params, args.use_graph)
-        optim = optim.Adam(
+        curr_optim = optim.Adam(
             model.parameters(), lr=params['lr'], betas=(params['b1'], params['b2'])
         )
         best_corr = -1
@@ -158,9 +189,9 @@ def loadModels(args, params):
             best_corr = cp['best_corr']
             epoch = cp['epoch']
         models[task] = model
-        optims[task] = optim
+        optims[task] = curr_optim
         best_corrs[task] = best_corr
-        loss_fn[task] = nn.MSELoss()
+        loss_fns[task] = nn.MSELoss()
 
     training_dict = {
         'models': models,
@@ -184,24 +215,28 @@ def train_loop(countries, args, params):
         writer_dir = os.path.join(args.model_dir, 'tb', train)
         writer = SummaryWriter(writer_dir)
         training_dict = loadModels(args, params)
-        models = train(training_dict, loss_fns, this_train, this_val, writer, params)
+        loss_fns = training_dict['loss_fns']
+        models = train_model(training_dict, loss_fns, this_train, this_val, writer, params)
 
         print('Model trained in {} results:'.format(train))
-        for val in country_opts:
-            if val == 'all' and train != 'all':
-                val_loader = data_loaders[train]['others']['val']
-            else:
-                val_loader = data_loaders[val]['val']
-            plot_info = {
-                'save_dir' : os.path.join(args.model_dir, 'plots'),
-                'title' : 'Train in {}, Val in {}'.format(train, val)
-            }
-            if not os.path.exists(plot_info['save_dir']):
-                os.makedirs(plot_info['save_dir'])
-            (corrs, losses), (ins, outs) = evaluate_model(models, val_loader, training_dict['loss_fn'])
-            plotPreds(ins, outs, corrs, plot_info)
-            print('\tValidated in {}'.format(val))
-            print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
+        with open('./experiments/{}_train.txt'.format(train), 'w') as log_file:
+            for val in country_opts:
+                if val == 'all' and train != 'all':
+                    val_loader = data_loaders[train]['others']['val']
+                else:
+                    val_loader = data_loaders[val]['val']
+                plot_info = {
+                    'save_dir' : os.path.join(args.model_dir, 'plots'),
+                    'title' : 'Train in {}, Val in {}'.format(train, val)
+                }
+                if not os.path.exists(plot_info['save_dir']):
+                    os.makedirs(plot_info['save_dir'])
+                (corrs, losses), (ins, outs) = evaluate_model(models, val_loader, training_dict['loss_fn'])
+                plotPreds(ins, outs, corrs, plot_info)
+                log_file.write('Validated in {}\n'.format(val))
+                log_file.write('Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
+                print('\tValidated in {}'.format(val))
+                print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
 
 def main():
     args, params = parseArgs()

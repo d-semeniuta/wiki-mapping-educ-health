@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 import sys
 sys.path.append('../../')
-from model.guf_net.layers import GUFConv
+from model.guf_net.layers.guf_conv import GUFConv
 
 class MultiModalNet(nn.Module):
     def __init__(self, params, use_graph=False):
@@ -24,7 +24,7 @@ class MultiModalNet(nn.Module):
         )
 
         self.out_layers = nn.Sequential(
-            nn.Linear(img_emb_size+wiki_emb_size, 256), nn.ReLU(),
+            nn.Linear(img_emb_size+wiki_emb_size_out, 256), nn.ReLU(),
             nn.Linear(256, 128), nn.ReLU(),
             nn.Linear(128, 32), nn.ReLU(),
             nn.Linear(32, 1)
