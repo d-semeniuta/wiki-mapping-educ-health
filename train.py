@@ -203,7 +203,7 @@ def chooseModel(task, args, params):
     else:
         raise ValueError('Incorrect Model type')
 
-def loadModels(args, params):
+def loadModels(train_country, args, params):
     models = {}
     optims = {}
     best_corrs = {}
@@ -219,7 +219,7 @@ def loadModels(args, params):
         if args.restore_file is not None:
             if args.restore_file is not 'last':
                 raise(ValueError("Can't load from best with current training setup"))
-            cp_loc = os.path.join(args.model_dir, '{}.last.pth'.format(task))
+            cp_loc = os.path.join(args.model_dir, train_country, '{}.last.pth'.format(task))
             cp = torch.load(cp_loc)
             model.load_state_dict(cp['state_dict'])
             optim.load_state_dict(cp['optim_dict'])

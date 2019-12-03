@@ -214,8 +214,9 @@ def plotSingle_plt(ins, outs, corr, save_dir, title, task):
         horizontalalignment='left',
         verticalalignment='top',
         transform=ax.transAxes)
-    ax.set_xlim(0,1)
-    ax.set_ylim(0,1)
+    max_res = 1 if task == 'imr' else 3
+    ax.set_xlim(0,max_res)
+    ax.set_ylim(0,max_res)
     plt.title(title)
     plt.xlabel('Ground Truth')
     plt.ylabel('Predictions')
