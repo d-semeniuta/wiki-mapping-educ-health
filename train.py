@@ -197,9 +197,9 @@ def chooseModel(task, args, params):
     elif model == 'guf':
         return GUFNet(task, params)
     elif model == 'graph':
-        Graph2VecNet(task, params)
+        return Graph2VecNet(task, params)
     elif model == 'doc':
-        Doc2VecNet(task, params)
+        return Doc2VecNet(task, params)
     else:
         raise ValueError('Incorrect Model type')
 
