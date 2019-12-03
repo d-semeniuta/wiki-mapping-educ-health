@@ -139,7 +139,7 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
                 )
                 # save models
                 for task, model in models.items():
-                    out_dir = os.path.join(params['model_dir'], params['country'])
+                    out_dir = os.path.join(params['model_dir'], params['train_country'])
                     if not os.path.exists(out_dir):
                         os.mkdir(out_dir)
                     dict_to_save = {
@@ -246,13 +246,14 @@ def train_loop(args, params):
                                     params['batch_size'], use_graph=args.use_graph)
     for train in country_opts:
         print('\nTraining on {}...'.format(train))
-        this_train = data_loaders[train]['train']
-        this_val = data_loaders[train]['val']
+        train_loader = data_loaders[train]['train']
+        val_loader = data_loaders[train]['val']
         writer_dir = os.path.join(args.model_dir, 'tb', train)
         writer = SummaryWriter(writer_dir)
         training_dict = loadModels(args, params)
+        params['train_country'] = train
         # loss_fns = training_dict['loss_fns']
-        models = train_model(training_dict, this_train, this_val, writer, params)
+        models = train_model(training_dict, train_loader, val_loader, writer, params)
 
         print('Model trained in {} results:'.format(train))
         log_file_loc = os.path.join(args.model_dir, '{}_train.txt'.format(train))
