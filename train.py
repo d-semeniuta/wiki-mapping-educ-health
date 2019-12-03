@@ -123,7 +123,7 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
                 progress_bar.update(1)
             # check evaluation step
             if epoch % params['eval_every'] == 0:
-                (corrs, losses), _ = evaluate(models, val_loader, loss_fns, params, writer=writer)
+                (corrs, losses), _ = evaluate(models, val_loader, loss_fns, params)
                 for task in corrs.keys():
                     writer.add_scalar('val/{}/r2'.format(task), corrs[task], epoch)
                     writer.add_scalar('val/{}/loss'.format(task), losses[task], epoch)
