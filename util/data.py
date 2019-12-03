@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler
+from torch.utils.data import Dataset, DataLoader, ConcatDataset, Subset
 from torchvision import transforms
 from skimage.io import imread
 
@@ -74,29 +74,34 @@ def split_dataset(dataset, batch_size=16, validation_split=0.2):
     split = int(np.floor(validation_split * dataset_size))
     np.random.shuffle(indices)
     train_indices, val_indices = indices[split:], indices[:split]
-    train_sampler = SubsetRandomSampler(train_indices)
-    valid_sampler = SubsetRandomSampler(val_indices)
-    train_loader = DataLoader(dataset, batch_size=batch_size,
-                                        sampler=train_sampler)
-    val_loader = DataLoader(dataset, batch_size=batch_size,
-                                        sampler=valid_sampler)
-    return train_loader, val_loader
+    train_subset = Subset(dataset, train_indices)
+    val_subset = Subset(dataset, val_indices)
+    return train_subset, val_subset
 
 def getDataLoaders(countries, guf_path, vec_feature_path, batch_size, use_graph=False):
-    def get_dataset(countries):
-        return CombinedAfricaDataset(countries=countries, cluster_image_dir=guf_path,
+    datasets = {}
+    for country in countries:
+        country_set = CombinedAfricaDataset(countries=country, cluster_image_dir=guf_path,
                                         use_graph=use_graph, vec_feature_path=vec_feature_path)
+        datasets[country] = split_dataset(country_set, batch_size=batch_size)
+
     data_loaders = {}
     for country in countries:
-        data = get_dataset(country)
-        others = [c for c in countries if c is not country]
-        others_data = get_dataset(others)
+        train_data, val_data = datasets[country]
         data_loaders[country] = {}
-        data_loaders[country]['train'], data_loaders[country]['val'] = split_dataset(data, batch_size=batch_size)
+        data_loaders[country]['train'] = DataLoader(train_data, batch_size=batch_size)
+        data_loaders[country]['val'] = DataLoader(val_data, batch_size=batch_size)
+
+        others = zip(*[datasets[c] for c in countries if c is not country])
+        others = [ConcatDataset(d) for d in others]
         data_loaders[country]['others'] = {}
-        data_loaders[country]['others']['train'], data_loaders[country]['others']['val'] = split_dataset(others_data, batch_size=batch_size)
-    alldata = get_dataset(countries)
+        data_loaders[country]['others']['train'] = DataLoader(others[0], batch_size=batch_size)
+        data_loaders[country]['others']['val'] = DataLoader(others[1], batch_size=batch_size)
+
+    alldata = zip(*[datasets[c] for c in countries])
+    alldata = [ConcatDataset(d) for d in alldata]
     data_loaders['all'] = {}
-    data_loaders['all']['train'], data_loaders['all']['val'] = split_dataset(alldata, batch_size=batch_size)
+    data_loaders['all']['train'] = DataLoader(alldata[0], batch_size=batch_size)
+    data_loaders['all']['val'] = DataLoader(alldata[1], batch_size=batch_size)
 
     return data_loaders
