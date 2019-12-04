@@ -4,7 +4,7 @@
   "lr" : 8e-4,
   "b1" : 0.9,
   "b2" : 0.999,
-  "batch_size" : 16,
+  "batch_size" : 8,
   "val_split" : 0.2,
   "num_epochs" : 150,
   "sigmoid_out" : "False",

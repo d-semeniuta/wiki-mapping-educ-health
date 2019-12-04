@@ -31,7 +31,7 @@ class MultiModalNet(nn.Module):
         )
 
     def forward(self, embs, images):
-        img_emb = self.guf_net(images) # (batch_size, img_emb_size)
+        img_emb = F.relu(self.guf_net(images)) # (batch_size, img_emb_size)
         wiki_emb = self.wiki_net(embs) # (batch_size, wiki_emb_size)
         out = torch.cat([img_emb, wiki_emb], 1)
         out = self.out_layers(out)

@@ -24,7 +24,8 @@ class CombinedAfricaDataset(Dataset):
         elif not isinstance(countries, list):
             raise(TypeError('Must give either string or list'))
         if len(set(countries) - set(african_countries)) > 0:
-            raise(ValueError('Countries out of dataset'))
+            diff_countries = set(countries) - set(african_countries)
+            raise(ValueError('Countries out of dataset: {}'.format(diff_countries)))
 
         proj_head = os.path.abspath('./')
 
@@ -102,6 +103,7 @@ class CombinedAfricaDataset(Dataset):
 
 
 def split_dataset(dataset, batch_size=16, validation_split=0.2):
+    np.random.seed(45)
     dataset_size = len(dataset)
     indices = list(range(dataset_size))
     split = int(np.floor(validation_split * dataset_size))
