@@ -38,7 +38,7 @@ class GUFNet(nn.Module):
         )
 
     def forward(self, x):
-        x = self.conv_net(x)
+        x = F.relu(self.conv_net(x))
 
         if self.sigmoid_out and self.task == 'mated':
             return 3 * torch.sigmoid(self.out_layers(x))

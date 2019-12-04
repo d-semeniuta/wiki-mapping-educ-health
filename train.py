@@ -97,7 +97,7 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
         model.train()
 
     device = params['device']
-    step = num_epochs * len(train_loader)
+    step = epoch * len(train_loader)
     total_batches = params['num_epochs'] * len(train_loader)
     best_corrs = {'imr': -1, 'mated': -1}
 
@@ -214,7 +214,9 @@ def loadModels(train_country, args, params):
         # model = MultiModalNet(params, args.use_graph)
         model = chooseModel(task, args, params).to(params['device'])
         curr_optim = optim.Adam(
-            model.parameters(), lr=params['lr'], betas=(params['b1'], params['b2'])
+            model.parameters(), lr=params['lr'],
+            betas=(params['b1'], params['b2']),
+            weight_decay=params['weight_decay']
         )
         best_corr = -1
         if args.restore_file is not None:
@@ -261,7 +263,7 @@ def train_loop(args, params):
         models = train_model(training_dict, train_loader, val_loader, writer, params)
 
         print('Model trained in {} results:'.format(train))
-        log_file_loc = os.path.join(args.model_dir, '{}_train.txt'.format(train))
+        log_file_loc = os.path.join(args.model_dir, '{}_train.log'.format(train))
         with open(log_file_loc, 'w') as log_file:
             for val in country_opts:
                 if val == 'all' and train != 'all':
@@ -320,9 +322,7 @@ def evaluate_loop(args, params):
 
 
 def main():
-
     args, params = parseArgs()
-    # countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
     if args.eval:
         evaluate_loop(args, params)
     else:

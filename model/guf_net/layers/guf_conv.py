@@ -18,35 +18,26 @@ class GUFConv(nn.Module):
             self.conv_net = nn.Sequential(
                 nn.Conv2d(1, 3, 5),
                 nn.ReLU(),
-                nn.Conv2d(3, 5, 5),
+                nn.Conv2d(3, 3, 5),
                 nn.ReLU(),
                 nn.Flatten(),
-                nn.Linear(15680, 512),
-                nn.ReLU(),
-                nn.Linear(512, outsize),
-                nn.ReLU()
+                nn.Linear(9408, outsize),
             )
         elif conv_activation == 'sigmoid':
             self.conv_net = nn.Sequential(
                 nn.Conv2d(1, 3, 5),
                 nn.Sigmoid(),
-                nn.Conv2d(3, 5, 5),
+                nn.Conv2d(3, 3, 5),
                 nn.Sigmoid(),
                 nn.Flatten(),
-                nn.Linear(15680, 512),
-                nn.ReLU(),
-                nn.Linear(512, outsize),
-                nn.ReLU()
+                nn.Linear(9408, outsize),
             )
         else:
             self.conv_net = nn.Sequential(
                 nn.Conv2d(1, 3, 5),
-                nn.Conv2d(3, 5, 5),
+                nn.Conv2d(3, 3, 5),
                 nn.Flatten(),
-                nn.Linear(15680, 512),
-                nn.ReLU(),
-                nn.Linear(512, outsize),
-                nn.ReLU()
+                nn.Linear(9408, outsize),
             )
 
 
