@@ -245,8 +245,8 @@ def train_loop(args, params):
     country_opts = countries + ['all']
     print('Generating data loaders...')
     data_loaders = getDataLoaders(countries, args.guf_path, args.vec_feature_path,
-                                    params['batch_size'], use_graph=args.use_graph,
-                                    overfit=args.overfit)
+                                    params['batch_size'], args.model_dir,
+                                    use_graph=args.use_graph, overfit=args.overfit)
     if args.overfit:
         print('Overfitting...')
         country_opts = [countries[0]]
