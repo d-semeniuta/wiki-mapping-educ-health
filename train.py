@@ -3,7 +3,7 @@ Train the model
 """
 
 import argparse
-import os
+import os, pdb
 import json
 import random
 
@@ -83,6 +83,8 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
     optimizers = training_dict['optims']
     loss_fns = training_dict['loss_fns']
     epoch = training_dict['epoch']  # in case loading from checkpoint
+    best_corrs = training_dict['best_corrs']
+    best_r2s = training_dict['best_r2s']
 
     for model in models.values():
         model.train()
@@ -90,7 +92,6 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
     device = params['device']
     step = epoch * len(train_loader)
     total_batches = params['num_epochs'] * len(train_loader)
-    best_corrs = {'imr': -1, 'mated': -1}
 
     with tqdm(total=total_batches) as progress_bar:
         while epoch < params['num_epochs']:
@@ -149,7 +150,13 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
                         # best by correlation
                         best_corrs[task] = corrs[task]
                         dict_to_save['best_corr'] = best_corrs[task]
-                        best_out = os.path.join(out_dir, '{}.best.pth'.format(task))
+                        best_out = os.path.join(out_dir, '{}.bestcorr.pth'.format(task))
+                        torch.save(dict_to_save, best_out)
+                    if r2s[task] > best_r2s[task]:
+                        # best by r2
+                        best_r2s[task] = r2s[task]
+                        dict_to_save['best_r2'] = best_r2s[task]
+                        best_out = os.path.join(out_dir, '{}.bestr2.pth'.format(task))
                         torch.save(dict_to_save, best_out)
                     last_out = os.path.join(out_dir, '{}.last.pth'.format(task))
                     torch.save(dict_to_save, last_out)
@@ -204,6 +211,7 @@ def loadModels(train_country, args, params):
     models = {}
     optims = {}
     best_corrs = {}
+    best_r2s = {}
     loss_fns = {}
     epoch = 0
     for task in ['imr', 'mated']:
@@ -215,6 +223,7 @@ def loadModels(train_country, args, params):
             weight_decay=params['weight_decay']
         )
         best_corr = -1
+        best_r2 = float('-inf')
         if args.restore_file is not None:
             if args.restore_file != 'last':
                 raise(ValueError("Can't load from best with current training setup"))
@@ -227,12 +236,14 @@ def loadModels(train_country, args, params):
         models[task] = model
         optims[task] = curr_optim
         best_corrs[task] = best_corr
+        best_r2s[task] = best_r2
         loss_fns[task] = nn.MSELoss()
 
     training_dict = {
         'models': models,
         'optims': optims,
         'best_corrs': best_corrs,
+        'best_r2s': best_r2s,
         'loss_fns': loss_fns,
         'epoch': epoch
     }
