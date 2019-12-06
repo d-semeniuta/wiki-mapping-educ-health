@@ -41,22 +41,14 @@ class CombinedAfricaDataset(Dataset):
         else:
             self.cluster_image_dir = cluster_image_dir
 
-        self.use_graph = use_graph
-
         # wiki embeddings
-        if self.use_graph:
+        graph2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'two_hop.csv')
+        self.graph2vec_embeddings = pd.read_csv(graph2vec_feature_path, header=0)
 
-            graph2vec_feature_path = os.path.join(proj_head, 'data', 'processed', 'two_hop.csv')
-
-            self.graph2vec_embeddings = pd.read_csv(graph2vec_feature_path, header=0)
-        else:
-            doc2vec_path = os.path.join(proj_head, 'model', 'doc2vec', 'coord_articles_only_doc2vec.model')
-            self.doc2vec = Doc2Vec.load(doc2vec_path)
-
-
-            nearest_articles_path = os.path.join(proj_head, 'data', 'processed', 'nearest_articles.csv')
-
-            self.nearest_articles = pd.read_csv(nearest_articles_path, sep=";", header = None)
+        doc2vec_path = os.path.join(proj_head, 'model', 'doc2vec', 'coord_articles_only_doc2vec.model')
+        self.doc2vec = Doc2Vec.load(doc2vec_path)
+        nearest_articles_path = os.path.join(proj_head, 'data', 'processed', 'nearest_articles.csv')
+        self.nearest_articles = pd.read_csv(nearest_articles_path, sep=";", header = None)
 
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
@@ -73,24 +65,24 @@ class CombinedAfricaDataset(Dataset):
         img_nm = os.path.join(self.cluster_image_dir, '{}.png'.format(cluster_id))
         image = self.transform(imread(img_nm))
 
-        if self.use_graph:
-            cluster_index = cluster_row['id']
-            embedding = list((self.graph2vec_embeddings.loc[self.graph2vec_embeddings.type == cluster_index]).to_numpy()[0])[1:]
-            embedding = np.asarray(embedding)
-            embedding = from_numpy(embedding).float()
-        else:
-            cluster_index = cluster_row['id']
-            cols = self.nearest_articles.columns
-            articles_row = self.nearest_articles.loc[self.nearest_articles[cols[0]] == cluster_index]
-            titles = list(articles_row[cols[1:11]].to_numpy()[0])
-            embedding = []
-            for title in titles:
-                temp_list = list(self.doc2vec.docvecs[title])
-                embedding += temp_list
-            dists = list(articles_row[cols[11:]].to_numpy()[0])
-            embedding += dists
-            embedding = np.asarray(embedding)
-            embedding = from_numpy(embedding).float()
+        # graph embs
+        cluster_index = cluster_row['id']
+        graph_emb = list((self.graph2vec_embeddings.loc[self.graph2vec_embeddings.type == cluster_index]).to_numpy()[0])[1:]
+        graph_emb = np.asarray(graph_emb)
+        graph_emb = from_numpy(graph_emb).float()
+        # doc embs
+        cluster_index = cluster_row['id']
+        cols = self.nearest_articles.columns
+        articles_row = self.nearest_articles.loc[self.nearest_articles[cols[0]] == cluster_index]
+        titles = list(articles_row[cols[1:11]].to_numpy()[0])
+        doc_emb = []
+        for title in titles:
+            temp_list = list(self.doc2vec.docvecs[title])
+            doc_emb += temp_list
+        dists = list(articles_row[cols[11:]].to_numpy()[0])
+        doc_emb += dists
+        doc_emb = np.asarray(doc_emb)
+        doc_emb = from_numpy(doc_emb).float()
 
         ed_labels = ['no_education', 'primary_education', 'secondary_education',
                         'higher_education']
@@ -99,7 +91,7 @@ class CombinedAfricaDataset(Dataset):
             ed_score += i * cluster_row['pct_{}'.format(label)]
 
         imr = cluster_row['imr']
-        return {'emb': embedding, 'image': image, 'ed_score': ed_score, 'imr': imr}
+        return {'doc_emb': doc_emb, 'graph_emb': graph_emb, 'image': image, 'ed_score': ed_score, 'imr': imr}
 
 
 def split_dataset(dataset, batch_size=16, validation_split=0.2):

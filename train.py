@@ -26,6 +26,7 @@ from tqdm import tqdm
 from util.data import getDataLoaders
 from util.utils import plotPreds
 from model.combined.model import MultiModalNet
+from model.graph_doc_guf.model import AllThreeNet
 from model.guf_net.model import GUFNet
 from model.doc_net.model import Doc2VecNet
 from model.graph_net.model import Graph2VecNet
@@ -51,13 +52,19 @@ def parseArgs():
     params['model_dir'] = args.model_dir
     return args, params
 
-def model_forward(model, model_type, *, embs, imgs):
-    if model_type == 'combined':
-        return model.forward(embs, imgs)
+def model_forward(model, model_type, *, doc_embs, graph_embs, imgs, args):
+    if model_type == 'all_three':
+        return model.forward(graph_embs=graph_embs, doc_embs=doc_embs, imgs=imgs)
+    if model_type == 'combined' and args.use_graph:
+        return model.forward(graph_embs, imgs)
+    elif model_type == 'combined':
+        return model.forward(doc_embs, imgs)
     elif model_type == 'guf':
         return model.forward(imgs)
+    elif args.use_graph:
+        return model.forward(graph_embs)
     else:
-        return model.forward(embs)
+        return model.forward(doc_embs)
 
 def train_model(training_dict, train_loader, val_loader, writer, params):
     """Trains the model for a single epoch
@@ -99,11 +106,12 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
             for i, batch in enumerate(train_loader):
                 step += 1
                 imr, ed_score = batch['imr'].to(device), batch['ed_score'].to(device)
-                embeddings, images = batch['emb'].to(device), batch['image'].to(device)
+                doc_embs, graph_embs, images = batch['doc_emb'].to(device), batch['graph_emb'].to(device), batch['image'].to(device)
                 labels = {'imr': imr, 'mated': ed_score}
                 for task, model in models.items():
                     optimizer = optimizers[task]
-                    out = model_forward(model, params['model_type'], embs=embeddings, imgs=images)
+                    out = model_forward(model, params['model_type'], doc_embs=doc_embs,
+                                            graph_embs=graph_embs, imgs=images, args=args)
 
                     loss_fn = loss_fns[task]
                     loss = loss_fn(out, labels[task].unsqueeze(-1))
@@ -118,7 +126,8 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
             if epoch % params['eval_every'] == 0:
                 (corrs, r2s, losses), _ = evaluate(models, val_loader, loss_fns, params)
                 for task in corrs.keys():
-                    writer.add_scalar('val/{}/r2'.format(task), corrs[task], epoch)
+                    writer.add_scalar('val/{}/corr'.format(task), corrs[task], epoch)
+                    writer.add_scalar('val/{}/r2'.format(task), r2s[task], epoch)
                     writer.add_scalar('val/{}/loss'.format(task), losses[task], epoch)
 
                 for model in models.values():
@@ -193,7 +202,7 @@ def evaluate(models, val_loader, loss_fns, params):
     return (corrs, r2s, losses), (ins, outs)
 
 def chooseModel(task, args, params):
-    models = ['combined', 'guf', 'graph', 'doc']
+    models = ['combined', 'guf', 'graph', 'doc', 'all_three']
     model = params['model_type']
 
     if model == 'combined':
@@ -204,6 +213,8 @@ def chooseModel(task, args, params):
         return Graph2VecNet(task, params)
     elif model == 'doc':
         return Doc2VecNet(task, params)
+    elif model == 'all_three':
+        return AllThreeNet(task, params)
     else:
         raise ValueError('Incorrect Model type')
 
