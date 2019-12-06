@@ -170,7 +170,7 @@ def getCoordinateCentroid(coords):
 #         )
 #     fig.write_image(os.path.join(out_dir, '{}.{}'.format(img_name, img_format)))
 
-def plotSingle_plotly(ins, outs, corr, save_dir, title, task):
+def plotSingle_plotly(ins, outs, r2, save_dir, title, task):
     trace1 = go.Scatter(
         x=ins,
         y=outs,
@@ -189,7 +189,7 @@ def plotSingle_plotly(ins, outs, corr, save_dir, title, task):
     annotation = go.layout.Annotation(
         x=0.05,
         y=max_val-0.05,
-        text='$R^2 = {:.3f}$'.format(corr),
+        text='$R^2 = {:.3f}$'.format(r2),
         showarrow=False,
     )
     layout = go.Layout(
@@ -203,14 +203,14 @@ def plotSingle_plotly(ins, outs, corr, save_dir, title, task):
     save_loc = os.path.join(save_dir, '{}.{}'.format(task, format))
     fig.write_image(save_loc)
 
-def plotSingle_plt(ins, outs, corr, save_dir, title, task):
+def plotSingle_plt(ins, outs, r2, save_dir, title, task):
     fig, ax = plt.subplots()
     ax.scatter(ins, outs)
     line = mlines.Line2D([0, 1], [0, 1], color='red')
     transform = ax.transAxes
     line.set_transform(transform)
     ax.add_line(line)
-    ax.text(0.05, 0.95, 'Corr: {:.3f}'.format(corr),
+    ax.text(0.05, 0.95, 'R^2: {:.3f}'.format(r2),
         horizontalalignment='left',
         verticalalignment='top',
         transform=ax.transAxes)
@@ -226,20 +226,20 @@ def plotSingle_plt(ins, outs, corr, save_dir, title, task):
         plt.savefig(save_loc, format=format, dpi=1200)
     plt.close()
 
-def plotSingle(ins, outs, corr, save_loc, title, task, use_plotly=False):
+def plotSingle(ins, outs, r2, save_loc, title, task, use_plotly=False):
     if use_plotly:
-        plotSingle_plotly(ins, outs, corr, save_loc, title, task)
+        plotSingle_plotly(ins, outs, r2, save_loc, title, task)
     else:
-        plotSingle_plt(ins, outs, corr, save_loc, title, task)
+        plotSingle_plt(ins, outs, r2, save_loc, title, task)
 
-def plotPreds(ins, outs, corrs, plot_info, use_plotly=False):
+def plotPreds(ins, outs, r2s, plot_info, use_plotly=False):
     title_task = {
         'imr': 'IMR', 'mated': 'Maternal Education'
     }
     for task in ins.keys():
         this_in = ins[task]
         this_out = outs[task]
-        corr = corrs[task]
+        r2 = r2s[task]
         save_dir = plot_info['save_dir']
         title = '{}, {}'.format(plot_info['title'], title_task[task])
-        plotSingle(this_in, this_out, corr, save_dir, title, task, use_plotly)
+        plotSingle(this_in, this_out, r2, save_dir, title, task, use_plotly)

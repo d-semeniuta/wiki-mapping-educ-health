@@ -13,6 +13,7 @@ import torch.utils.data as data
 import torch.nn as nn
 
 from scipy.stats import pearsonr, linregress
+from sklearn.metrics import r2_score
 
 from tensorboardX import SummaryWriter
 
@@ -49,16 +50,6 @@ def parseArgs():
     params['device'] =  torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     params['model_dir'] = args.model_dir
     return args, params
-
-# def get_loss(out, task, labels, loss_fn):
-#     imr, ed_score = labels
-#     if task == 'imr':
-#         loss = loss_fn(out, imr.unsqueeze(-1))
-#     elif task == 'mated':
-#         loss = loss_fn(out, ed_score.unsqueeze(-1))
-#     else:
-#         loss = loss_fn(out[0], imr.unsqueeze(-1)) + loss_fn(out[1], ed_score.unsqueeze(-1))
-#     return loss
 
 def model_forward(model, model_type, *, embs, imgs):
     if model_type == 'combined':
@@ -124,7 +115,7 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
                 progress_bar.update(1)
             # check evaluation step
             if epoch % params['eval_every'] == 0:
-                (corrs, losses), _ = evaluate(models, val_loader, loss_fns, params)
+                (corrs, r2s, losses), _ = evaluate(models, val_loader, loss_fns, params)
                 for task in corrs.keys():
                     writer.add_scalar('val/{}/r2'.format(task), corrs[task], epoch)
                     writer.add_scalar('val/{}/loss'.format(task), losses[task], epoch)
@@ -133,8 +124,10 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
                     model.train()
 
                 progress_bar.set_postfix(
-                    r2_imr=corrs['imr'],
-                    r2_mated=corrs['mated'],
+                    pearsonr_imr=corrs['imr'],
+                    pearsonr_mated=corrs['mated'],
+                    r2_imr=r2s['imr'],
+                    r2_mated=r2s['mated'],
                     loss_imr=losses['imr'],
                     loss_mated=losses['mated'],
                     epoch=epoch
@@ -149,6 +142,7 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
                         'state_dict': model.state_dict(),
                         'optim_dict': optimizers[task].state_dict(),
                         'best_corr': best_corrs[task],
+                        'best_r2': best_r2s[task],
                         'task': task
                     }
                     if corrs[task] > best_corrs[task]:
@@ -182,12 +176,14 @@ def evaluate(models, val_loader, loss_fns, params):
             outs[task] = torch.cat(outs[task])
         corrs = {}
         losses = {}
+        r2s = {}
         for task in outs.keys():
             corrs[task] = pearsonr(ins[task].numpy(), outs[task].numpy())[0]
+            r2s[task] = r2_score(ins[task].numpy(), outs[task].numpy())
             loss_fn = loss_fns[task]
             losses[task] = loss_fn(ins[task], outs[task]).item()
 
-    return (corrs, losses), (ins, outs)
+    return (corrs, r2s, losses), (ins, outs)
 
 def chooseModel(task, args, params):
     models = ['combined', 'guf', 'graph', 'doc']
@@ -276,12 +272,14 @@ def train_loop(args, params):
                 }
                 if not os.path.exists(plot_info['save_dir']):
                     os.makedirs(plot_info['save_dir'])
-                (corrs, losses), (ins, outs) = evaluate(models, val_loader, training_dict['loss_fns'], params)
-                plotPreds(ins, outs, corrs, plot_info)
+                (corrs, r2s, losses), (ins, outs) = evaluate(models, val_loader, training_dict['loss_fns'], params)
+                plotPreds(ins, outs, r2s, plot_info)
                 log_file.write('Validated in {}\n'.format(val))
                 log_file.write('Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
+                log_file.write('\tIMR r2: {:.3f}\t\tMatEd r2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
                 print('\tValidated in {}'.format(val))
                 print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
+                print('\t\t IMR r2: {:.3f}\t\tMatEd r2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
 
 def evaluate_loop(args, params):
     if args.restore_file is None:
@@ -312,12 +310,14 @@ def evaluate_loop(args, params):
                 }
                 if not os.path.exists(plot_info['save_dir']):
                     os.makedirs(plot_info['save_dir'])
-                (corrs, losses), (ins, outs) = evaluate(models, val_loader, training_dict['loss_fns'], params)
-                plotPreds(ins, outs, corrs, plot_info)
+                (corrs, r2s, losses), (ins, outs) = evaluate(models, val_loader, training_dict['loss_fns'], params)
+                plotPreds(ins, outs, r2s, plot_info)
                 log_file.write('Validated in {}\n'.format(val))
-                log_file.write('Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
+                log_file.write('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
+                log_file.write('\t\tIMR r2: {:.3f}\t\tMatEd r2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
                 print('\tValidated in {}'.format(val))
                 print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
+                print('\t\t IMR r2: {:.3f}\t\tMatEd r2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
 
 
 
