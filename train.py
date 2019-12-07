@@ -38,7 +38,7 @@ def parseArgs():
     parser.add_argument('--restore_file', default=None,
                         help="Optional, name of the file in --model_dir containing weights to reload before \
                         training")  # 'best' or 'last'
-    parser.add_argument('--use_graph', action='store_true', help='Use graph embeddings when training, default false')
+    # parser.add_argument('--use_graph', action='store_true', help='Use graph embeddings when training, default false')
     parser.add_argument('--overfit', action='store_true', help='Overfit to a training set')
     parser.add_argument('--vec_feature_path', default=None, help="File containing vec features")
     parser.add_argument('--guf_path', default=None, help="File containing guf images")
@@ -52,16 +52,16 @@ def parseArgs():
     params['model_dir'] = args.model_dir
     return args, params
 
-def model_forward(model, model_type, *, doc_embs, graph_embs, imgs, args):
+def model_forward(model, model_type, *, doc_embs, graph_embs, imgs, params):
     if model_type == 'all_three':
         return model.forward(graph_embs=graph_embs, doc_embs=doc_embs, imgs=imgs)
-    if model_type == 'combined' and args.use_graph:
+    if model_type == 'combined' and params['use_graph']:
         return model.forward(graph_embs, imgs)
     elif model_type == 'combined':
         return model.forward(doc_embs, imgs)
     elif model_type == 'guf':
         return model.forward(imgs)
-    elif args.use_graph:
+    elif params['use_graph']:
         return model.forward(graph_embs)
     else:
         return model.forward(doc_embs)
@@ -111,7 +111,7 @@ def train_model(training_dict, train_loader, val_loader, writer, params):
                 for task, model in models.items():
                     optimizer = optimizers[task]
                     out = model_forward(model, params['model_type'], doc_embs=doc_embs,
-                                            graph_embs=graph_embs, imgs=images, args=args)
+                                            graph_embs=graph_embs, imgs=images, params=params)
 
                     loss_fn = loss_fns[task]
                     loss = loss_fn(out, labels[task].unsqueeze(-1))
@@ -179,9 +179,11 @@ def evaluate(models, val_loader, loss_fns, params):
         ins, outs = {'imr': [], 'mated': []}, {'imr': [], 'mated': []}
         for batch in val_loader:
             imr, ed_score = batch['imr'].to(device), batch['ed_score'].to(device)
-            embeddings, images = batch['emb'].to(device), batch['image'].to(device)
+            doc_embs, graph_embs = batch['doc_emb'].to(device), batch['graph_emb'].to(device)
+            images = batch['image'].to(device)
             for task, model in models.items():
-                out = model_forward(model, params['model_type'], embs=embeddings, imgs=images)
+                out = model_forward(model, params['model_type'], doc_embs=doc_embs,
+                                        graph_embs=graph_embs, imgs=images, params=params)
                 outs[task].append(out.detach().squeeze(-1))
             ins['imr'].append(imr)
             ins['mated'].append(ed_score)
@@ -206,7 +208,7 @@ def chooseModel(task, args, params):
     model = params['model_type']
 
     if model == 'combined':
-        return MultiModalNet(params, args.use_graph)
+        return MultiModalNet(params, params['use_graph'])
     elif model == 'guf':
         return GUFNet(task, params)
     elif model == 'graph':
@@ -266,7 +268,7 @@ def train_loop(args, params):
     print('Generating data loaders...')
     data_loaders = getDataLoaders(countries, args.guf_path, args.vec_feature_path,
                                     params['batch_size'], args.model_dir,
-                                    use_graph=args.use_graph, overfit=args.overfit)
+                                    use_graph=params['use_graph'], overfit=args.overfit)
     if args.overfit:
         print('Overfitting...')
         country_opts = [countries[0]]
@@ -298,10 +300,12 @@ def train_loop(args, params):
                 plotPreds(ins, outs, r2s, plot_info)
                 log_file.write('Validated in {}\n'.format(val))
                 log_file.write('Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
-                log_file.write('\tIMR r2: {:.3f}\t\tMatEd r2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
+                log_file.write('\tIMR r2: {:.3f}\t\tMatEd r2: {:.3f}'.format(corrs['imr']**2, corrs['mated']**2))
+                log_file.write('\tIMR R2: {:.3f}\t\tMatEd R2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
                 print('\tValidated in {}'.format(val))
                 print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
-                print('\t\t IMR r2: {:.3f}\t\tMatEd r2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
+                print('\t\tIMR r2: {:.3f}\t\tMatEd r2: {:.3f}'.format(corrs['imr']**2, corrs['mated']**2))
+                print('\t\t IMR R2: {:.3f}\t\tMatEd R2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
 
 def evaluate_loop(args, params):
     if args.restore_file is None:
@@ -311,7 +315,7 @@ def evaluate_loop(args, params):
     print('Generating data loaders...')
     data_loaders = getDataLoaders(countries, args.guf_path, args.vec_feature_path,
                                     params['batch_size'], args.model_dir,
-                                    use_graph=args.use_graph, overfit=args.overfit)
+                                    use_graph=params['use_graph'], overfit=args.overfit)
     for train in country_opts:
         print('\nTrained on {}...'.format(train))
         val_loader = data_loaders[train]['val']
@@ -335,11 +339,13 @@ def evaluate_loop(args, params):
                 (corrs, r2s, losses), (ins, outs) = evaluate(models, val_loader, training_dict['loss_fns'], params)
                 plotPreds(ins, outs, r2s, plot_info)
                 log_file.write('Validated in {}\n'.format(val))
-                log_file.write('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
-                log_file.write('\t\tIMR r2: {:.3f}\t\tMatEd r2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
+                log_file.write('Separate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}\n'.format(corrs['imr'], corrs['mated']))
+                log_file.write('\tIMR r2: {:.3f}\t\tMatEd r2: {:.3f}\n'.format(corrs['imr']**2, corrs['mated']**2))
+                log_file.write('\tIMR R2: {:.3f}\t\tMatEd R2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
                 print('\tValidated in {}'.format(val))
                 print('\tSeparate Model - IMR corr: {:.3f}\t\tMatEd corr: {:.3f}'.format(corrs['imr'], corrs['mated']))
-                print('\t\t IMR r2: {:.3f}\t\tMatEd r2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
+                print('\t\tIMR r2: {:.3f}\t\tMatEd r2: {:.3f}\n'.format(corrs['imr']**2, corrs['mated']**2))
+                print('\t\t IMR R2: {:.3f}\t\tMatEd R2: {:.3f}\n'.format(r2s['imr'], r2s['mated']))
 
 
 
