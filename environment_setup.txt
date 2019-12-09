@@ -1,0 +1,13 @@
+Expected structure for provided data:
+In code/data/raw we expect the following files
+
+.(data)
+|--raw
+|  |--DHS
+|     |--InfantMortality_Cluster5Year.csv
+|     |--InfantMortality_ClusterYear.csv
+|     |--MaternalEducation_cluster.csv
+|  |--guf
+|     |--GUF_Continent_Africa.tif
+|  |--wikipedia
+|     |--wiki data

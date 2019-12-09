@@ -22,7 +22,7 @@ class CombinedAfricaDataset(Dataset):
         if isinstance(countries, str):
             countries = [countries]
         elif not isinstance(countries, list):
-            raise(TypeError('Must give either string or list'))
+            raise(TypeError('Must give either string or list for countries', countries))
         if len(set(countries) - set(african_countries)) > 0:
             diff_countries = set(countries) - set(african_countries)
             raise(ValueError('Countries out of dataset: {}'.format(diff_countries)))

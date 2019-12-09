@@ -7,8 +7,8 @@ Expected Directory structure
 |  |--DHS
 |     |--DHS csv data
 |  |--misc
-|  |--nightlights
-|     |--nighlights data
+|  |--guf
+|     |--guf data
 |  |--wikipedia
 |     |--wiki data
 |--processed -> output directory for processing

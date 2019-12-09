@@ -18,12 +18,11 @@ combined_dhs_loc = os.path.join(data_dir, 'processed', 'ClusterLevelCombined_5yr
 combined_dhs = pd.read_csv(combined_dhs_loc)
 
 # open GDAL data set
-nightlights_path = os.path.abspath('../data/raw/nightlights')
+guf_dir = os.path.abspath('../data/raw/guf')
 guf_out_path = os.path.abspath('../data/processed/guf/')
-# guf_out_path = os.path.join(nightlights_path, 'cluster_images')
 os.makedirs(guf_out_path, exist_ok=True)
 
-GUF_filepath = os.path.join(nightlights_path, "GUF_Continent_Africa.tif") #r"../data/raw/nightlights/GUF_Continent_Africa.tif"
+GUF_filepath = os.path.join(guf_dir, "GUF_Continent_Africa.tif")
 
 # Open the file:
 raster = gdal.Open(GUF_filepath)
@@ -34,7 +33,6 @@ if not raster:
 # import GDAL data into GeoProps object for ease of use
 geo_prop = GeoProps()
 geo_prop.import_geogdal(raster)
-
 
 african_countries = ['Angola', 'Benin', 'Burundi', 'Egypt', 'Ethiopia', 'Ghana', 'Kenya',
     'Lesotho', 'Malawi', 'Mozambique', 'Rwanda', 'Chad', 'Tanzania', 'Uganda', 'Zimbabwe']
@@ -58,7 +56,6 @@ print('Number of countries surveyed:', unique_DHS_clusters_Africa['country'].nun
 
 mean_intensities = []
 std_intensities = []
-
 
 cluster = unique_DHS_clusters_Africa.iloc[0]
 for idx, cluster in tqdm(unique_DHS_clusters_Africa.iterrows(), desc='Building Rasters',
