@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from data import Graph2VecAfricaDataset
+from .data import Graph2VecAfricaDataset
 
 class Graph2VecNet(nn.Module):
     def __init__(self, task, params):
@@ -16,6 +16,8 @@ class Graph2VecNet(nn.Module):
         self.sigmoid_out = params['sigmoid_out']
 
         out_layers = [
+            nn.Linear(300, 256),
+            nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, 32),
@@ -24,6 +26,8 @@ class Graph2VecNet(nn.Module):
         ]
         if self.task == 'both':
             self.imr_out = nn.Sequential(
+                nn.Linear(300, 256),
+                nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
                 nn.Linear(128, 32),
@@ -31,6 +35,8 @@ class Graph2VecNet(nn.Module):
                 nn.Linear(32, 1)
             )
             self.mated_out = nn.Sequential(
+                nn.Linear(300, 256),
+                nn.ReLU(),
                 nn.Linear(256, 128),
                 nn.ReLU(),
                 nn.Linear(128, 32),

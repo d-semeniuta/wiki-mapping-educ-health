@@ -1,0 +1,5 @@
+tb/
+plots/
+*.txt
+*.log
+*.pth

@@ -1,6 +1,7 @@
 import os
 
 import pandas as pd
+import numpy as np
 
 from torch.utils.data import Dataset
 from torch import from_numpy
@@ -25,7 +26,7 @@ class Doc2VecAfricaDataset(Dataset):
             dhs_data_loc = os.path.join(proj_head, 'data', 'processed', 'ClusterLevelCombined_5yrIMR_MatEd.csv')
 
         combined_dhs = pd.read_csv(dhs_data_loc)
-        self.combined_dhs = combined_dhs[combined_dhs['country'].isin(countries)]
+        self.combined_dhs = combined_dhs[combined_dhs['country'].isin(countries)]        
 
         doc2vec_path = os.path.join(proj_head, 'model', 'doc2vec', 'coord_articles_only_doc2vec.model')
         self.doc2vec = Doc2Vec.load(doc2vec_path)
@@ -50,6 +51,8 @@ class Doc2VecAfricaDataset(Dataset):
             embedding += temp_list
         dists = list(articles_row[cols[11:]].to_numpy()[0])
         embedding += dists
+        embedding = np.asarray(embedding)
+        embedding = from_numpy(embedding).float()
 
         ed_labels = ['no_education', 'primary_education', 'secondary_education',
                         'higher_education']

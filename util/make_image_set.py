@@ -19,9 +19,9 @@ combined_dhs = pd.read_csv(combined_dhs_loc)
 
 # open GDAL data set
 nightlights_path = os.path.abspath('../data/raw/nightlights')
-nightlights_image_set_path = os.path.join(nightlights_path, 'cluster_images')
-if not os.path.exists(nightlights_image_set_path):
-    os.mkdir(nightlights_image_set_path)
+guf_out_path = os.path.abspath('../data/processed/guf/')
+# guf_out_path = os.path.join(nightlights_path, 'cluster_images')
+os.makedirs(guf_out_path, exist_ok=True)
 
 GUF_filepath = os.path.join(nightlights_path, "GUF_Continent_Africa.tif") #r"../data/raw/nightlights/GUF_Continent_Africa.tif"
 
@@ -64,7 +64,7 @@ cluster = unique_DHS_clusters_Africa.iloc[0]
 for idx, cluster in tqdm(unique_DHS_clusters_Africa.iterrows(), desc='Building Rasters',
                             total=len(unique_DHS_clusters_Africa)):
     raster_img = geo_prop.get_coord_centered_img(cluster['lat'], cluster['lon'], 6, 6, raster,
-                                                 filepath=os.path.join(nightlights_image_set_path, cluster['cluster_id'] + '.png'))
+                                                 filepath=os.path.join(guf_out_path, cluster['cluster_id'] + '.png'))
 
     mean_intensities.append(float(np.mean(raster_img)))
     std_intensities.append(float(np.std(raster_img)))

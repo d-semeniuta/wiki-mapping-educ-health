@@ -1,0 +1,16 @@
+{
+  "model_name" : "just_guf",
+  "model_type" : "guf",
+  "lr" : 8e-4,
+  "b1" : 0.9,
+  "b2" : 0.999,
+  "batch_size" : 8,
+  "val_split" : 0.2,
+  "num_epochs" : 150,
+  "sigmoid_out" : "False",
+  "eval_every" : 15,
+  "plot_preds" : "True",
+  "visual_emb_size" : 256,
+  "conv_activation" : "relu",
+  "countries" : ["Ghana", "Zimbabwe", "Kenya", "Egypt"]
+}

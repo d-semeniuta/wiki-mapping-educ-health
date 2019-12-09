@@ -9,8 +9,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from data import GUFAfricaDataset
-from layers.guf_conv import GUFConv
+from .data import GUFAfricaDataset
+from .layers.guf_conv import GUFConv
 
 class GUFNet(nn.Module):
     def __init__(self, task, params):
@@ -23,55 +23,29 @@ class GUFNet(nn.Module):
 
         """
         super(GUFNet, self).__init__()
-        if task not in ['imr', 'mated', 'both']:
+        if task not in ['imr', 'mated']:
             raise(ValueError('Incorrect Task'))
         self.task = task
 
-
         self.conv_net = GUFConv(256, params['conv_activation'])
         self.sigmoid_out = params['sigmoid_out']
-        out_layers = [
+        self.out_layers = nn.Sequential(
             nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, 32),
             nn.ReLU(),
-            nn.Linear(32, 1),
-        ]
-        if self.task == 'both':
-            self.imr_out = nn.Sequential(
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, 32),
-                nn.ReLU(),
-                nn.Linear(32, 1)
-            )
-            self.mated_out = nn.Sequential(
-                nn.Linear(256, 128),
-                nn.ReLU(),
-                nn.Linear(128, 32),
-                nn.ReLU(),
-                nn.Linear(32, 1)
-            )
-        else:
-            self.out_layers = nn.Sequential(*out_layers)
+            nn.Linear(32, 1)
+        )
 
     def forward(self, x):
-        x = self.conv_net(x)
+        x = F.relu(self.conv_net(x))
 
         if self.sigmoid_out and self.task == 'mated':
-            return 3 * F.sigmoid(self.out_layers(x))
-        elif self.sigmoid_out and self.task == 'both':
-            return (
-                F.sigmoid(self.imr_out(x)),
-                3 * F.sigmoid(self.mated_out(x))
-            )
-        elif self.task == 'both':
-            return (
-                self.imr_out(x),
-                self.mated_out(x)
-            )
+            return 3 * torch.sigmoid(self.out_layers(x))
+        elif self.sigmoid_out:
+            return torch.sigmoid(self.out_layers(x))
         else:
-            return F.sigmoid(self.out_layers(x)) if self.sigmoid_out else self.out_layers(x)
+            return self.out_layers(x)
 
 def main():
     gufdata = GUFAfricaDataset()

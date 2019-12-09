@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from data import Doc2VecAfricaDataset
+from .data import Doc2VecAfricaDataset
 
 class Doc2VecNet(nn.Module):
     def __init__(self, task, params):
@@ -16,6 +16,8 @@ class Doc2VecNet(nn.Module):
         self.sigmoid_out = params['sigmoid_out']
 
         out_layers = [
+            nn.Linear(3010, 512),
+            nn.ReLU(),
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
@@ -26,6 +28,8 @@ class Doc2VecNet(nn.Module):
         ]
         if self.task == 'both':
             self.imr_out = nn.Sequential(
+                nn.Linear(3010, 512),
+                nn.ReLU(),
                 nn.Linear(512, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
@@ -35,6 +39,8 @@ class Doc2VecNet(nn.Module):
                 nn.Linear(32, 1)
             )
             self.mated_out = nn.Sequential(
+                nn.Linear(3010, 512),
+                nn.ReLU(),
                 nn.Linear(512, 256),
                 nn.ReLU(),
                 nn.Linear(256, 128),
