@@ -1,7 +1,6 @@
 {
   "model_name" : "just_guf",
   "model_type" : "guf",
-  "use_graph" : "False",
   "lr" : 8e-4,
   "b1" : 0.9,
   "b2" : 0.999,
