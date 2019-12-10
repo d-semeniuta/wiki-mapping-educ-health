@@ -22,7 +22,7 @@ def report_download_progress(chunk_number, chunk_size, file_size):
         sys.stdout.write('\r0% |{:<64}| {}%'.format(bar, int(percent * 100)))
 
 
-def download(destination_path, url, quiet):
+def download(destination_path, url, quiet=False):
     if os.path.exists(destination_path):
         if not quiet:
             print('{} already exists, skipping ...'.format(destination_path))

@@ -1,8 +1,10 @@
 from get_wiki_data import download_wikipedia
 from parse_wiki import segment_and_write_all_articles
 from create_doc2vec import build_doc2vec
-from create_doc2vec_dataset import create_doc2vec_datasets
-from create_graph2vec import create_graphs
+from create_doc2vec_dataset import main as doc2vec_dataset_main
+from create_graph2vec import main as graph2vec_dataset_main
+from graph2vec.src.graph2vec import create_model
+import os
 
 import logging
 logger = logging.getLogger(__name__)
@@ -13,7 +15,8 @@ DEFAULT_WORKERS = max(1, multiprocessing.cpu_count() - 1)
 
 def main():
     download_wikipedia(
-        destination = "../raw/wikipedia"
+        destination = "../raw/wikipedia",
+        url = 'https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2'
     )
 
     segment_and_write_all_articles(
@@ -46,32 +49,11 @@ def main():
         num_workers = DEFAULT_WORKERS
     )
 
-    create_doc2vec_dataset(
-        doc2vec_path = "./models/coord_articles_only_doc2vec.model",
-        parsed_path = "../raw/wikipedia/processed_wiki_corpus_coord_articles_only.bz2",
-        number = 10,
-        train_path = "../split/ClusterLevelCombined_5yrIMR_MatEd_train.csv",
-        test_path = "../split/ClusterLevelCombined_5yrIMR_MatEd_test.csv",
-        valid_path = "../split/ClusterLevelCombined_5yrIMR_MatEd_valid.csv"
-    )
+    doc2vec_dataset_main()
 
-    create_graphs(
-        doc2vec_path = "./models/all_articles_doc2vec.model",
-        parsed_path = "../raw/wikipedia/processed_wiki_corpus_all_articles.bz2",
-        output_folder = "./graph2vec/our_dataset",
-        feature_file = "./graph2vec/our_features/feat.csv",
-        number = 10,
-        train_path = "../split/ClusterLevelCombined_5yrIMR_MatEd_train.csv",
-        test_path = "../split/ClusterLevelCombined_5yrIMR_MatEd_test.csv",
-        valid_path = "../split/ClusterLevelCombined_5yrIMR_MatEd_valid.csv",
-        hops = 2
-    )
+    graph2vec_dataset_main()
 
-    build_graph2vec(
-        graphs_path = "./graph2vec/our_dataset",
-        output_path = "../models/graph2vec.csv",
-        num_workers = DEFAULT_WORKERS
-    )
+    create_model("./graphs/two_hop_run2", "../processed/two_hop.csv", dimensions = 300)
 
 if __name__ == "__main__":
     main()

@@ -4,12 +4,17 @@ from gensim import utils
 from gensim.models.doc2vec import Doc2Vec
 import json
 import logging
-
+import argparse
+import sys
+import multiprocessing
+from multiprocessing import Process, Queue
+import pickle
+​
 logger = logging.getLogger(__name__)
-
+​
 # Distance in km to check within
 MARGIN = 10
-
+​
 def compute_distance(c1, c2):
     # approximate radius of earth in km
     R = 6373.0
@@ -27,71 +32,62 @@ def compute_distance(c1, c2):
     except:
         logger.info("problem with the coordinate - not sure why sad.")
         return -1
-
-def find_closest_articles(lat, lon, parsed_path, num_nearest=10):
+​
+def find_clostest_articles(lat, lon, parsed_array, num_nearest=10):
     distances = []
-    count = 0
-    with utils.open(parsed_path, 'rb') as file:
-        for line in file:
-            count+=1
-            data = json.loads(line)
-            curr_dist = compute_distance([lat, lon], data["coords"])
-            if curr_dist != -1:
-                distances.append((curr_dist, data["title"]))
+    # count = 0
+    for entry in parsed_array:
+        # count+=1
+        curr_dist = compute_distance([lat, lon], entry[0])
+        if curr_dist != -1:
+            distances.append([curr_dist, entry[1]])
+        # if count % 10000 == 0:
+        #     logger.info("Computed {} distances".format(str(count)))
             # logger.info("Finished processing %d articles.", count)
     distances.sort()
-
-    logger.info("Found the " + str(num_nearest) + " nearest articles")
+​
+    # logger.info("Found the " + str(num_nearest) + " nearest articles")
     return [[distances[i][0], distances[i][1]] for i in range(num_nearest)]
-
-def create_doc2vec_dataset(doc2vec_path, parsed_path, number, file_path):
-    model = Doc2Vec.load(doc2vec_path)
-    prefix, _ = file_path.split(".")
-    outfile_path = prefix + "_doc2vec_dataset.csv"
-    with open(output_file_path, 'wb') as outfile:
-        df = pd.read_csv(file_path, header = True)
-        for i in range(len(df["Lat"])):
-            embedding_collector = []
-            distance_collector = []
-            clust_lat, clust_lon = df["Lat"][i], df["Lon"][i]
-            topn = find_closest_articles(clust_lat, clust_lon, parsed_path, number)
-            for entry in topn:
-                title = entry[1]
-                distance = entry[0]
-                distance_collector.append(distance)
-                embedding = model.docvecs[title]
-                data_string = ",".join(map(str, embedding))
-                embedding_collector.append(data_string)
-            final_collector = embedding_collector + distance_collector
-            output_line = ",".join(map(str, final_collector))
-            # CAN ADD THE Y VALUES IN HERE TOO.
-            outfile.write(output_line + "\n")
-
-def create_doc2vec_datasets(doc2vec_path, parsed_path, number, train_path, test_path, valid_path):
-    create_doc2vec_dataset(doc2vec_path, parsed_path, number, train_path)
-    create_doc2vec_dataset(doc2vec_path, parsed_path, number, test_path)
-    create_doc2vec_dataset(doc2vec_path, parsed_path, number, valid_path)
-
+​
+def line_writer(i):
+    # print('Doing index {}'.format(str(i)))
+​
+    df = pd.read_csv("../split/ClusterLevelCombined_5yrIMR_MatEd.csv", header = 0)
+    countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
+    df = df[df['country'].isin(countries)]
+    # output_file_path = "./split/ClusterLevelCombined_5yrIMR_MatEd_train_dataset.csv"
+    # with open(output_file_path, 'w') as outfile:
+    clust_lat, clust_lon = df['lat'].iloc[i], df['lon'].iloc[i]
+    dist_array = find_clostest_articles(clust_lat, clust_lon, parsed_array)
+    output_string = str(df['id'].iloc[i]) + ";"
+    embedding_strings = []
+    distances = []
+    for entry in dist_array:
+        distances.append(str(entry[0]))
+        output_string += entry[1] + ";"
+    output_string += ";".join(distances)
+    return output_string
+​
+def main():
+    p = multiprocessing.Pool()
+    df = pd.read_csv("../split/ClusterLevelCombined_5yrIMR_MatEd.csv", header = 0)
+    countries = ['Ghana', 'Zimbabwe', 'Kenya', 'Egypt']
+    df = df[df['country'].isin(countries)]
+​
+    print(df.country.unique())
+​
+    max_len = len(df['lat'])
+    logger.info("Need to process {} datapoints".format(max_len))
+    count = 0
+    with open('../split/nearest_articles_2.csv', 'w') as outfile:
+        for result in p.imap(line_writer, range(max_len)):
+            outfile.write(result + "\n")
+            count += 1
+            if count % 100 == 0:
+                logger.info("Processed {} lines".format(str(count)))
+​
+​
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s - %(module)s - %(levelname)s - %(message)s', level=logging.INFO)
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('-d', '--doc2vec', help="Path to the doc2vec modelS.", required=True)
-    parser.add_argument('-p', '--parsed', help="Path to the parsed dataset.", required=True)
-    parser.add_argument('-n', '--number', help="Number of closest articles to find", default=10)
-    parser.add_argument('--train', help="Path to the train cluster set.", required=True)
-    parser.add_argument('--test', help = "Path to the test cluster set.", required=True)
-    parser.add_argument('--valid', help = "Path to the validation cluster set.", required=True)
-    args = parser.parse_args()
-
-    logger.info("running %s", " ".join(sys.argv))
-
-    create_doc2vec_datasets(
-        args.doc2vec,
-        args.parsed,
-        args.number,
-        args.train,
-        args.test,
-        args.valid
-    )
-
-    logger.info("finished running %s", sys.argv[0])
+    main()
