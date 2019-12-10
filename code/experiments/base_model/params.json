@@ -13,5 +13,6 @@
   "plot_preds" : "True",
   "visual_emb_size" : 256,
   "conv_activation" : "relu",
-  "countries" : ["Ghana", "Zimbabwe", "Kenya", "Egypt"]
+  "countries" : ["Ghana", "Zimbabwe", "Kenya", "Egypt"],
+  "weight_decay" : 3e-7
 }
