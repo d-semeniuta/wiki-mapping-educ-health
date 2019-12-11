@@ -1,8 +1,0 @@
-This is information on how to generate the processed data from raw wiki data
-
-Required raw data, located in ./raw/wikipedia directory:
-
-
-run 'python3 process_wiki_data.py'
-
-Generates outputs in /processed:

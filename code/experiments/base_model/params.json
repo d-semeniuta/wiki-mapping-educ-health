@@ -1,0 +1,18 @@
+{
+  "model_name" : "run0",
+  "model_type" : "combined",
+  "use_graph" : "True",
+  "lr" : 8e-4,
+  "b1" : 0.9,
+  "b2" : 0.999,
+  "batch_size" : 16,
+  "val_split" : 0.2,
+  "num_epochs" : 150,
+  "sigmoid_out" : "False",
+  "eval_every" : 15,
+  "plot_preds" : "True",
+  "visual_emb_size" : 256,
+  "conv_activation" : "relu",
+  "countries" : ["Ghana", "Zimbabwe", "Kenya", "Egypt"],
+  "weight_decay" : 3e-7
+}

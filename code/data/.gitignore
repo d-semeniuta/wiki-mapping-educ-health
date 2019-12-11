@@ -1,0 +1,9 @@
+raw/
+processed/
+runs/
+zips/
+*.pyc
+n_articles_1_task_MatEd_reg_0_lr_0.003_countries_train_Rwanda/
+*.doc2vec
+*.zip
+

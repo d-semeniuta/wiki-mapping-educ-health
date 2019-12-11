@@ -1,0 +1,19 @@
+{
+  "model_name" : "guf_graph",
+  "model_type" : "combined",
+  "use_graph" : "True",
+  "lr" : 8e-4,
+  "b1" : 0.9,
+  "b2" : 0.999,
+  "weight_decay" : 3e-7,
+  "batch_size" : 32,
+  "val_split" : 0.2,
+  "num_epochs" : 90,
+  "sigmoid_out" : "False",
+  "eval_every" : 15,
+  "plot_preds" : "True",
+  "visual_emb_size" : 256,
+  "conv_activation" : "relu",
+  "countries" : ["Ghana", "Zimbabwe", "Kenya", "Egypt"],
+  "weight_decay" : 3e-7
+}
